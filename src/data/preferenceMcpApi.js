@@ -1,0 +1,380 @@
+const CAPABILITIES = {
+  listTrending: "pmmd__list_trending",
+  getMarket: "pmdat__get_market",
+  listKnownKols: "wsi__list_known_kols",
+  marketKolHolders: "wsi__get_market_kol_holders",
+  realizedPnl: "pmsg__get_subgraph_realized_pnl",
+};
+
+const DEFAULT_KOL_LIMIT = 40;
+const DEFAULT_TRENDING_LIMIT = 50;
+const DEFAULT_HOLDER_LIMIT = 50;
+const CLOSED_POSITION_LIMIT = 100;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export class PreferenceMcpApi {
+  constructor({ invokeCapability, kolLimit = DEFAULT_KOL_LIMIT, trendingLimit = DEFAULT_TRENDING_LIMIT } = {}) {
+    if (typeof invokeCapability !== "function") {
+      throw new Error("PreferenceMcpApi requires an invokeCapability function");
+    }
+    this.invokeCapability = invokeCapability;
+    this.kolLimit = kolLimit;
+    this.trendingLimit = trendingLimit;
+    this.walletCache = null;
+    this.closedPositionsCache = null;
+    this.closedMarketTagsCache = null;
+    this.marketCache = new Map();
+  }
+
+  async listKnownWallets() {
+    if (this.walletCache) return this.walletCache;
+    const payload = await this.invokeCapability(CAPABILITIES.listKnownKols, {
+      limit: this.kolLimit,
+      require_positions: true,
+    });
+    const rows = arrayFrom(payload, ["rows", "kols", "results", "data"]);
+    const wallets = {};
+
+    for (const row of rows) {
+      const wallet = normalizeWallet(row.address_normalized ?? row.address ?? row.wallet);
+      if (!wallet) continue;
+      wallets[wallet] = {
+        knownHandle: bestHandle(row),
+        candidateSources: candidateSources(row),
+      };
+    }
+
+    this.walletCache = { wallets };
+    return this.walletCache;
+  }
+
+  async listClosedPositions() {
+    if (this.closedPositionsCache) return this.closedPositionsCache;
+    const { wallets } = await this.listKnownWallets();
+    const positions = [];
+    const marketTags = {};
+
+    await Promise.all(
+      Object.keys(wallets).map(async (wallet) => {
+        try {
+          const payload = await this.invokeCapability(CAPABILITIES.realizedPnl, {
+            account: wallet,
+            limit: CLOSED_POSITION_LIMIT,
+          });
+          for (const item of realizedPnlRows(payload)) {
+            const position = normalizeClosedPosition(wallet, item);
+            if (!position) continue;
+            positions.push(position);
+            marketTags[position.marketId] = inferTags(item);
+          }
+        } catch {
+          // Some upstream PnL subgraph queries can time out for active wallets.
+          // Keep the adapter usable and let the registry audit show reduced coverage.
+        }
+      }),
+    );
+
+    this.closedPositionsCache = { positions };
+    this.closedMarketTagsCache = { marketTags };
+    return this.closedPositionsCache;
+  }
+
+  async listClosedMarketTags() {
+    if (!this.closedMarketTagsCache) await this.listClosedPositions();
+    return this.closedMarketTagsCache;
+  }
+
+  async listTrendingMarkets() {
+    const payload = await this.invokeCapability(CAPABILITIES.listTrending, {
+      limit: this.trendingLimit,
+      active: true,
+      closed: false,
+      order: "volume24hr",
+      ascending: false,
+    });
+    const trending = arrayFrom(payload, ["markets", "results", "data"]);
+    const slugs = trending.map((market) => market.slug).filter(Boolean);
+    const detailed = slugs.length > 0 ? await this.fetchMarketsBySlugs(slugs) : [];
+    const bySlug = new Map(detailed.map((market) => [market.slug, market]));
+    const markets = trending.map((market) => normalizeMarket({ ...market, ...bySlug.get(market.slug) })).filter(Boolean);
+    return { markets };
+  }
+
+  async listTopHolders(conditionId) {
+    const fetchedAt = new Date().toISOString();
+    const payload = await this.invokeCapability(CAPABILITIES.marketKolHolders, {
+      condition_id: conditionId,
+      limit: DEFAULT_HOLDER_LIMIT,
+    });
+    const holders = normalizeHolders(payload);
+    return { holders, fetchedAt };
+  }
+
+  async resolvePolymarketUrl(url) {
+    const slug = slugFromPolymarketUrl(url);
+    if (!slug) return { conditionIds: [], error: "unsupported" };
+    const markets = await this.fetchMarketsBySlugs([slug]);
+    const conditionIds = markets.map((market) => market.conditionId).filter(Boolean);
+    return {
+      conditionIds,
+      error: conditionIds.length > 0 ? null : "not_found",
+    };
+  }
+
+  async fetchMarketsBySlugs(slugs) {
+    const missing = slugs.filter((slug) => !this.marketCache.has(slug));
+    if (missing.length > 0) {
+      const payload = await this.invokeCapability(CAPABILITIES.getMarket, {
+        slugs: missing,
+        normalize_tokens: true,
+      });
+      for (const market of arrayFrom(payload, ["markets", "results", "data"])) {
+        const normalized = normalizeMarket(market);
+        if (normalized?.slug) this.marketCache.set(normalized.slug, normalized);
+      }
+      const single = normalizeMarket(payload.market);
+      if (single?.slug) this.marketCache.set(single.slug, single);
+    }
+    return slugs.map((slug) => this.marketCache.get(slug)).filter(Boolean);
+  }
+}
+
+export class PreferenceMcpHttpClient {
+  constructor({ url = process.env.PREFERENCE_MCP_URL, token = process.env.PREFERENCE_MCP_TOKEN } = {}) {
+    if (!url) throw new Error("Set PREFERENCE_MCP_URL to use DATA_SOURCE=preference");
+    this.url = url;
+    this.token = token;
+    this.nextId = 1;
+  }
+
+  async invokeCapability(capabilityId, args = {}) {
+    return this.callTool("invoke_capability", {
+      capability_id: capabilityId,
+      arguments: args,
+    });
+  }
+
+  async callTool(name, args) {
+    const response = await fetch(this.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: this.nextId++,
+        method: "tools/call",
+        params: { name, arguments: args },
+      }),
+    });
+
+    const text = await response.text();
+    if (!response.ok) throw new Error(`Preference MCP request failed (${response.status}): ${text}`);
+    const message = parseMcpResponse(text);
+    if (message.error) throw new Error(message.error.message ?? "Preference MCP returned an error");
+    return unwrapToolResult(message.result);
+  }
+}
+
+export function createPreferenceMcpApiFromEnv() {
+  const client = new PreferenceMcpHttpClient();
+  return new PreferenceMcpApi({
+    invokeCapability: (capabilityId, args) => client.invokeCapability(capabilityId, args),
+    kolLimit: numberFromEnv("PREFERENCE_KOL_LIMIT", DEFAULT_KOL_LIMIT),
+    trendingLimit: numberFromEnv("PREFERENCE_TRENDING_LIMIT", DEFAULT_TRENDING_LIMIT),
+  });
+}
+
+function normalizeMarket(market) {
+  if (!market) return null;
+  const outcomes = parseArray(market.outcomes);
+  const prices = parseArray(market.outcomePrices ?? market.outcome_prices ?? market.prices);
+  const currentPrices = { ...(market.currentPrices ?? {}) };
+  outcomes.forEach((outcome, index) => {
+    const price = toNumber(prices[index]);
+    if (outcome && typeof price === "number") currentPrices[String(outcome).toUpperCase()] = price;
+  });
+  return {
+    conditionId: market.conditionId ?? market.condition_id ?? null,
+    slug: market.slug ?? null,
+    question: market.question ?? market.title ?? "",
+    rawTags: inferTags(market),
+    currentPrices,
+    volume24h: toNumber(market.volume24hr ?? market.volume24h ?? market.volume_24h),
+  };
+}
+
+function normalizeClosedPosition(wallet, item) {
+  const realizedPnl = toNumber(item.realizedPnl ?? item.realized_pnl ?? item.pnl ?? item.profit);
+  if (typeof realizedPnl !== "number") return null;
+  const marketId =
+    item.marketId ?? item.market_id ?? item.conditionId ?? item.condition_id ?? item.tokenId ?? item.token_id ?? item.id;
+  if (!marketId) return null;
+  return {
+    wallet,
+    marketId: String(marketId),
+    closed: true,
+    realizedPnl,
+    volume: toNumber(item.volume ?? item.size ?? item.amount ?? item.costBasis ?? item.cost_basis) ?? Math.abs(realizedPnl),
+    isRecent90d: isRecent90d(item.timestamp ?? item.updatedAt ?? item.updated_at ?? item.closedAt ?? item.closed_at),
+  };
+}
+
+function normalizeHolders(payload) {
+  const holders = [];
+  const grouped = payload?.holders_by_outcome ?? payload?.holdersByOutcome;
+  if (grouped && typeof grouped === "object") {
+    for (const [outcome, rows] of Object.entries(grouped)) {
+      for (const row of parseArray(rows)) {
+        const holder = normalizeHolder(row, outcome);
+        if (holder) holders.push(holder);
+      }
+    }
+  }
+
+  for (const row of arrayFrom(payload, ["holders", "rows", "data"])) {
+    const holder = normalizeHolder(row, row.outcome);
+    if (holder) holders.push(holder);
+  }
+
+  for (const market of arrayFrom(payload, ["markets"])) {
+    for (const row of parseArray(market.top_known_kols ?? market.topKnownKols)) {
+      const holder = normalizeHolder(row, row.outcome);
+      if (holder) holders.push(holder);
+    }
+  }
+
+  return holders;
+}
+
+function normalizeHolder(row, fallbackOutcome) {
+  const wallet = normalizeWallet(row.address_normalized ?? row.address ?? row.wallet);
+  if (!wallet) return null;
+  return {
+    wallet,
+    outcome: String(row.outcome ?? row.side ?? fallbackOutcome ?? "UNKNOWN").toUpperCase(),
+    size: toNumber(row.size ?? row.balance ?? row.shares ?? row.total_value_usd ?? row.value) ?? 0,
+    averageEntry: toNumber(row.averageEntry ?? row.average_entry ?? row.avg_entry ?? row.avgPrice ?? row.avg_price),
+  };
+}
+
+function realizedPnlRows(payload) {
+  return arrayFrom(payload, ["positions", "realized_pnl", "realizedPnl", "rows", "data", "events"]);
+}
+
+function bestHandle(row) {
+  const handle = row.twitter_username ?? row.primary_kol_name ?? row.display_name ?? row.name;
+  if (!handle) return null;
+  const value = String(handle);
+  return value.startsWith("@") ? value : `@${value}`;
+}
+
+function candidateSources(row) {
+  const sources = new Set(parseArray(row.kol_sources));
+  if (row.smart_wallet) sources.add("smart_wallet");
+  if (row.is_known_kol) sources.add("known_kol");
+  if (sources.size === 0) sources.add("preference_mcp");
+  return [...sources];
+}
+
+function inferTags(item) {
+  const explicit = [
+    ...parseArray(item?.tags),
+    ...parseArray(item?.rawTags),
+    ...parseArray(item?.categories),
+    ...parseArray(item?.smart_wallet_tags),
+  ].filter(Boolean);
+  const text = [item?.question, item?.title, item?.description, item?.slug, ...explicit].filter(Boolean).join(" ");
+  const tags = [...explicit];
+  const rules = [
+    ["Politics", /\b(election|president|senate|congress|trump|biden|iran|government|politic)\b/i],
+    ["Sports", /\b(nba|nfl|mlb|nhl|soccer|football|ufc|tennis|sports?)\b/i],
+    ["Weather", /\b(weather|hurricane|temperature|rain|snow|storm|climate)\b/i],
+    ["Crypto", /\b(crypto|bitcoin|btc|ethereum|eth|solana|xrp|doge)\b/i],
+    ["Macro", /\b(fed|federal reserve|inflation|cpi|gdp|rates?|macro|economy|unemployment)\b/i],
+    ["Technology", /\b(ai|openai|space|spacex|science|technology|tech|nasa|robot|chip)\b/i],
+  ];
+  for (const [tag, pattern] of rules) {
+    if (pattern.test(text) && !tags.includes(tag)) tags.push(tag);
+  }
+  return tags;
+}
+
+function slugFromPolymarketUrl(value) {
+  try {
+    const url = new URL(value);
+    if (!/(^|\.)polymarket\.com$/i.test(url.hostname)) return null;
+    const parts = url.pathname.split("/").filter(Boolean);
+    const markerIndex = parts.findIndex((part) => ["event", "market"].includes(part));
+    return parts[markerIndex + 1] ?? parts.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function arrayFrom(payload, keys) {
+  for (const key of keys) {
+    const value = payload?.[key];
+    const parsed = parseArray(value);
+    if (parsed.length > 0) return parsed;
+  }
+  return [];
+}
+
+function parseArray(value) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeWallet(value) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(String(value ?? ""))) return null;
+  return String(value).toLowerCase();
+}
+
+function isRecent90d(value) {
+  if (!value) return false;
+  const timestamp = typeof value === "number" ? value * 1000 : Date.parse(value);
+  if (!Number.isFinite(timestamp)) return false;
+  return Date.now() - timestamp <= 90 * DAY_MS;
+}
+
+function parseMcpResponse(text) {
+  if (text.trim().startsWith("{")) return JSON.parse(text);
+  const dataLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find((line) => line.startsWith("data:"));
+  if (!dataLine) throw new Error("Preference MCP returned an unrecognized response");
+  return JSON.parse(dataLine.slice("data:".length).trim());
+}
+
+function unwrapToolResult(result) {
+  const content = result?.content;
+  if (!Array.isArray(content)) return result;
+  const text = content.find((item) => item.type === "text")?.text;
+  if (!text) return result;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { text };
+  }
+}
+
+function numberFromEnv(name, fallback) {
+  const value = Number(process.env[name]);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Smart Money Specialists</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <canvas id="signalCanvas" aria-hidden="true"></canvas>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Preference intelligence</p>
+          <h1>Smart Money Specialists</h1>
+          <p class="dek">Category-proven wallets, current holder state, and honest confidence in one scan.</p>
+        </div>
+        <div class="top-metrics">
+          <div>
+            <span>Markets</span>
+            <strong id="marketCount">--</strong>
+          </div>
+          <div>
+            <span>Signals</span>
+            <strong id="signalCount">--</strong>
+          </div>
+          <div class="freshness" id="registryFreshness">Registry loading</div>
+        </div>
+      </header>
+
+      <section class="controls" aria-label="Dashboard controls">
+        <div class="segmented" id="categoryFilter">
+          <button class="active" data-category="all">All</button>
+          <button data-category="politics">Politics</button>
+          <button data-category="weather">Weather</button>
+          <button data-category="crypto">Crypto</button>
+          <button data-category="macro">Macro</button>
+          <button data-category="sci-tech">Sci-tech</button>
+        </div>
+        <select id="sortMode" aria-label="Sort markets">
+          <option value="volume">24h volume</option>
+          <option value="specialists">Specialist count</option>
+          <option value="skew">Strongest skew</option>
+        </select>
+        <label class="toggle">
+          <input type="checkbox" id="hideInsufficient" />
+          <span>Hide thin data</span>
+        </label>
+        <input id="marketSearch" placeholder="Search markets" />
+      </section>
+
+      <form class="url-scan" id="customScanForm">
+        <input id="customUrl" placeholder="Paste a Polymarket market URL" />
+        <button type="submit">Scan URL</button>
+      </form>
+      <div class="notice" id="customScanNotice" hidden></div>
+
+      <section class="signal-strip" aria-label="Current specialist summary">
+        <div>
+          <span>Dominant signal</span>
+          <strong id="dominantSignal">Waiting for scan</strong>
+        </div>
+        <div>
+          <span>Coverage state</span>
+          <strong id="coverageState">Loading</strong>
+        </div>
+      </section>
+
+      <section class="market-list" id="marketList" aria-live="polite"></section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
