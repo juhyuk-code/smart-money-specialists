@@ -366,9 +366,6 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
                 tags: detail?.categories,
               }}
             />
-            <button className="border border-ink-3 px-3 py-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-2">
-              mirror
-            </button>
           </div>
         </header>
 
@@ -383,8 +380,8 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
               exposure over time
             </div>
-            <div className="flex h-[260px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft">
-              <span className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">curve surface</span>
+            <div className="flex h-[260px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft p-4">
+              <SparkLine up={(detail?.totalCurrentSize ?? 0) >= 0} width={320} height={110} />
             </div>
           </div>
         </section>

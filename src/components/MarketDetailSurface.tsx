@@ -75,8 +75,9 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           <span className="text-ink-2">{market.marketSlug}</span>
         </nav>
 
-        <header className="mt-4 grid gap-4 border-b border-ink-3 pb-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-end">
-          <section className="min-w-0">
+        <header className="surface-card relative mt-4 overflow-hidden rounded-[3px] xl:grid xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-accent via-[var(--positive)] to-[var(--negative)] opacity-80" />
+          <section className="min-w-0 p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap gap-1">
               {categories.slice(0, 4).map((tag) => (
                 <Pill key={tag}>{tag}</Pill>
@@ -86,12 +87,17 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </Pill>
             </div>
             <Eyebrow>{"// MARKET ▸ DETAIL"}</Eyebrow>
-            <h1 className="mt-2 max-w-[1040px] font-mono text-[24px] font-medium leading-tight text-ink sm:text-[30px]">
+            <h1 className="mt-3 max-w-[1040px] font-mono text-[24px] font-medium leading-tight text-ink sm:text-[34px]">
               {market.question}
             </h1>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <SideMetric label="holder lean" value={lead ? `${lead.outcome} / ${lead.specialistCount}` : "--"} />
+              <SideMetric label="position size" value={formatCurrency(totalPositionSize)} />
+              <SideMetric label="24h volume" value={formatCurrency(market.volume24h)} />
+            </div>
           </section>
 
-          <section className="surface-card rounded-[3px] p-4">
+          <section className="border-t border-ink-3 bg-paper/70 p-4 xl:border-l xl:border-t-0">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <div className={gapIsPositive ? "font-mono text-[28px] leading-none text-[var(--positive)]" : "font-mono text-[28px] leading-none text-[var(--negative)]"}>
@@ -161,7 +167,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
 
             <section className="surface-card rounded-[3px] p-4">
               <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
-                movement surface
+                position curve
               </div>
               <div className="flex h-[150px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft">
                 <SparkLine up={(lead?.totalCurrentSize ?? 0) >= 0} width={220} height={72} />
