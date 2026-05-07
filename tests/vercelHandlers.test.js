@@ -21,6 +21,8 @@ test("markets handler does not use mock fallback for Preference outages", async 
   process.env.PREFERENCE_MCP_TOKEN = "test";
 
   const originalFetch = globalThis.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
   globalThis.fetch = async () =>
     new Response(
       JSON.stringify({
@@ -55,6 +57,8 @@ test("markets handler does not use mock fallback for Preference outages", async 
     assert.equal(response.body.upstreamStatus.status, "unavailable");
   } finally {
     globalThis.fetch = originalFetch;
+    if (originalDatabaseUrl) process.env.DATABASE_URL = originalDatabaseUrl;
+    else delete process.env.DATABASE_URL;
   }
 });
 

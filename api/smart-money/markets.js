@@ -1,6 +1,7 @@
 import { getAppContext } from "../../src/appContext.js";
 import { getCachedValue, setCachedValue } from "../../src/cache.js";
 import { sendJson, SHORT_CACHE_HEADERS } from "../../src/http.js";
+import { readMarketSnapshot, saveMarketSnapshot } from "../../src/services/snapshotStore.js";
 
 const MARKETS_CACHE_TTL_MS = 5 * 60 * 1000;
 const LAST_GOOD_TTL_MS = 24 * 60 * 60 * 1000;
@@ -38,7 +39,7 @@ export default async function handler(request, response) {
       upstreamStatus: { status: "ok", reason: null },
       ...result,
     };
-    if (dataSource === "preference") setCachedValue(LAST_GOOD_NAMESPACE, "preference", payload, LAST_GOOD_TTL_MS);
+    if (dataSource === "preference") await saveLastGoodSnapshot(payload);
     return sendCachedPayload(response, cacheKey, payload);
   } catch (error) {
     console.error(error);
@@ -47,26 +48,16 @@ export default async function handler(request, response) {
   }
 }
 
-function sendLastKnownOrUnavailable(response, reason) {
+async function sendLastKnownOrUnavailable(response, reason) {
   const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, "preference");
   if (lastGood) {
-    return sendJson(
-      response,
-      {
-        ...lastGood.value,
-        upstreamStatus: {
-          status: "stale",
-          reason,
-          lastGoodAt: lastGood.cachedAt,
-        },
-        cache: {
-          status: "last-good",
-          cachedAt: lastGood.cachedAt,
-        },
-      },
-      200,
-      SHORT_CACHE_HEADERS,
-    );
+    return sendLastGood(response, lastGood, reason, "last-good");
+  }
+
+  const storedLastGood = await readMarketSnapshot("default:preference");
+  if (storedLastGood) {
+    setCachedValue(LAST_GOOD_NAMESPACE, "preference", storedLastGood.value, LAST_GOOD_TTL_MS);
+    return sendLastGood(response, storedLastGood, reason, "stored-last-good");
   }
 
   return sendJson(
@@ -86,6 +77,31 @@ function sendLastKnownOrUnavailable(response, reason) {
     },
     503,
     { "cache-control": "no-store" },
+  );
+}
+
+async function saveLastGoodSnapshot(payload) {
+  setCachedValue(LAST_GOOD_NAMESPACE, "preference", payload, LAST_GOOD_TTL_MS);
+  await saveMarketSnapshot("default:preference", payload);
+}
+
+function sendLastGood(response, lastGood, reason, status) {
+  return sendJson(
+    response,
+    {
+      ...lastGood.value,
+      upstreamStatus: {
+        status: "stale",
+        reason,
+        lastGoodAt: lastGood.cachedAt,
+      },
+      cache: {
+        status,
+        cachedAt: lastGood.cachedAt,
+      },
+    },
+    200,
+    SHORT_CACHE_HEADERS,
   );
 }
 
