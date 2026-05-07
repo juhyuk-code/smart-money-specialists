@@ -257,13 +257,45 @@ export class PreferenceMcpHttpClient {
     this.url = url;
     this.token = token;
     this.nextId = 1;
+    this.capabilityCallMode = null;
   }
 
   async invokeCapability(capabilityId, args = {}) {
-    return this.callTool("invoke_capability", {
-      capability_id: capabilityId,
-      arguments: args,
-    });
+    const calls = [
+      {
+        mode: "tool_ref_call_tool",
+        name: "call_tool",
+        args: { tool_name: capabilityId, arguments: args },
+      },
+      {
+        mode: "tool_ref_call_tool_name",
+        name: "call_tool",
+        args: { name: capabilityId, arguments: args },
+      },
+      {
+        mode: "legacy_invoke_capability",
+        name: "invoke_capability",
+        args: { capability_id: capabilityId, arguments: args },
+      },
+    ];
+
+    const orderedCalls = this.capabilityCallMode
+      ? [...calls.filter((call) => call.mode === this.capabilityCallMode), ...calls.filter((call) => call.mode !== this.capabilityCallMode)]
+      : calls;
+    const errors = [];
+
+    for (const call of orderedCalls) {
+      try {
+        const result = await this.callTool(call.name, call.args);
+        this.capabilityCallMode = call.mode;
+        return result;
+      } catch (error) {
+        errors.push(error?.message ?? String(error));
+        if (!isCapabilityDispatchError(error)) throw error;
+      }
+    }
+
+    throw new Error(errors.at(-1) ?? "Preference MCP capability call failed");
   }
 
   async callTool(name, args) {
@@ -485,6 +517,19 @@ function unwrapToolResult(result) {
   } catch {
     return { text };
   }
+}
+
+function isCapabilityDispatchError(error) {
+  const message = String(error?.message ?? error ?? "").toLowerCase();
+  return (
+    message.includes("invoke_capability") ||
+    message.includes("call_tool") ||
+    message.includes("invalid params") ||
+    message.includes("unknown tool") ||
+    message.includes("not found") ||
+    message.includes("missing") ||
+    message.includes("required")
+  );
 }
 
 function numberFromEnv(name, fallback) {
