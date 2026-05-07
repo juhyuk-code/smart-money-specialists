@@ -214,6 +214,22 @@ export class PreferenceMcpApi {
   getDiagnostics() {
     return this.diagnostics;
   }
+
+  async probeRealizedPnl(wallet) {
+    const payload = await this.invokeCapability(CAPABILITIES.realizedPnl, {
+      account: wallet,
+      limit: 5,
+    });
+    const rows = realizedPnlRows(payload);
+    return {
+      capability: CAPABILITIES.realizedPnl,
+      argumentKeys: ["account", "limit"],
+      payloadShape: describeValue(payload),
+      parsedRowCount: rows.length,
+      firstRowShape: describeValue(rows[0]),
+      firstRowSample: redactSample(rows[0]),
+    };
+  }
 }
 
 export class PreferenceMcpHttpClient {
@@ -455,4 +471,42 @@ function unwrapToolResult(result) {
 function numberFromEnv(name, fallback) {
   const value = Number(process.env[name]);
   return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function describeValue(value) {
+  if (Array.isArray(value)) {
+    return {
+      type: "array",
+      length: value.length,
+      first: describeValue(value[0]),
+    };
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).slice(0, 20);
+    return {
+      type: "object",
+      keys: Object.keys(value).slice(0, 30),
+      fields: Object.fromEntries(entries.map(([key, fieldValue]) => [key, describeValueShallow(fieldValue)])),
+    };
+  }
+  return describeValueShallow(value);
+}
+
+function describeValueShallow(value) {
+  if (Array.isArray(value)) return { type: "array", length: value.length };
+  if (value && typeof value === "object") return { type: "object", keys: Object.keys(value).slice(0, 12) };
+  return { type: typeof value, sample: value === undefined ? null : String(value).slice(0, 80) };
+}
+
+function redactSample(value) {
+  if (!value || typeof value !== "object") return value ?? null;
+  const sample = {};
+  for (const [key, fieldValue] of Object.entries(value).slice(0, 20)) {
+    if (/address|wallet|account/i.test(key) && typeof fieldValue === "string") {
+      sample[key] = `${fieldValue.slice(0, 6)}...${fieldValue.slice(-4)}`;
+    } else {
+      sample[key] = fieldValue;
+    }
+  }
+  return sample;
 }

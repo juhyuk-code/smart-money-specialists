@@ -313,3 +313,29 @@ test("preference adapter falls back to current top holders when known KOL list i
   });
   assert.equal(api.getDiagnostics().fallbackCandidateWallets, 1);
 });
+
+test("preference adapter can probe realized PnL payload shape", async () => {
+  const api = new PreferenceMcpApi({
+    invokeCapability: async (capabilityId, args) => {
+      assert.equal(capabilityId, "pmsg__get_subgraph_realized_pnl");
+      assert.deepEqual(args, {
+        account: "0xabc0000000000000000000000000000000000001",
+        limit: 5,
+      });
+      return {
+        rows: [
+          {
+            account: "0xabc0000000000000000000000000000000000001",
+            condition_id: "0xmarket",
+            realized_pnl: "25",
+          },
+        ],
+      };
+    },
+  });
+
+  const probe = await api.probeRealizedPnl("0xabc0000000000000000000000000000000000001");
+  assert.equal(probe.parsedRowCount, 1);
+  assert.equal(probe.firstRowSample.account, "0xabc0...0001");
+  assert.deepEqual(probe.payloadShape.keys, ["rows"]);
+});
