@@ -73,6 +73,7 @@ export function MarketsDashboard() {
   }, [category, markets, query, sortMode]);
 
   const readyMarkets = markets.filter((market) => market.outcomes.length > 0);
+  const hasMarkets = markets.length > 0;
   const trackedWallets = new Set(
     markets.flatMap((market) =>
       market.outcomes.flatMap((outcome) => outcome.topSpecialists.map((specialist) => specialist.wallet)),
@@ -84,32 +85,34 @@ export function MarketsDashboard() {
     <Frame>
       <NavBar />
 
-      <main className="px-5 py-5 md:px-8 md:py-7">
+      <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">
             <Eyebrow>{"// MARKETS ▸ SMART-MONEY SIGNAL"}</Eyebrow>
-            <h1 className="font-mono text-[20px] font-medium uppercase leading-tight tracking-[1px] text-ink md:text-[24px]">
-              SMART MONEY · POLYMARKET
+            <h1 className="font-mono text-[19px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[21px] md:text-[24px]">
+              PREF · POLYMARKET
             </h1>
             <p className="max-w-[760px] font-mono text-[12px] leading-relaxed text-ink-2">
               Specialist positioning, public odds, and market volume in one view.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="-mx-4 flex overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
+            <div className="flex min-w-max items-center gap-2 sm:min-w-0 sm:flex-wrap">
             {categories.map((item) => (
-              <button key={item} type="button" onClick={() => setCategory(item)}>
+              <button key={item} type="button" onClick={() => setCategory(item)} className="shrink-0">
                 <Pill tone={category === item ? "accent" : "ink"}>{item}</Pill>
               </button>
             ))}
+            </div>
           </div>
         </section>
 
-        <section className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="markets scanned" value={String(markets.length)} />
-          <StatCard label="with specialist signal" value={String(readyMarkets.length)} highlight />
-          <StatCard label="tracked wallets" value={String(trackedWallets.size)} />
-          <StatCard label="latest snapshot" value={relativeTime(registryRefreshedAt)} highlight />
+        <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <StatCard label="markets scanned" value={hasMarkets ? String(markets.length) : "--"} />
+          <StatCard label="with specialist signal" value={hasMarkets ? String(readyMarkets.length) : "--"} highlight />
+          <StatCard label="tracked wallets" value={hasMarkets ? String(trackedWallets.size) : "--"} />
+          <StatCard label="latest snapshot" value={hasMarkets ? relativeTime(registryRefreshedAt) : "--"} highlight />
         </section>
 
         <section className="mb-5 flex flex-col gap-3 border-y border-dashed border-ink-3 py-3 lg:flex-row lg:items-center">
@@ -118,20 +121,20 @@ export function MarketsDashboard() {
               strongest visible signal
             </span>
             <span className="truncate font-mono text-[13px] text-ink">
-              {topSignal?.headline ?? "Market snapshot warming up"}
+              {topSignal?.headline ?? "Signal surface ready"}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid gap-2 sm:flex sm:flex-wrap sm:items-center">
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search markets"
-              className="h-8 w-full border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none placeholder:text-ink-3 focus:border-accent sm:w-[260px]"
+              className="h-9 w-full border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none placeholder:text-ink-3 focus:border-accent sm:h-8 sm:w-[260px]"
             />
             <select
               value={sortMode}
               onChange={(event) => setSortMode(event.target.value as SortMode)}
-              className="h-8 border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none focus:border-accent"
+              className="h-9 border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none focus:border-accent sm:h-8"
             >
               <option value="volume">volume</option>
               <option value="specialists">specialists</option>
@@ -147,11 +150,7 @@ export function MarketsDashboard() {
             ))}
           </section>
         ) : (
-          <section className="border border-dashed border-ink-3 bg-paper-2 px-5 py-12 text-center">
-            <span className="font-mono text-[12px] uppercase tracking-[1px] text-ink-2">
-              Market snapshot warming up
-            </span>
-          </section>
+          <EmptyMarketSurface />
         )}
       </main>
     </Frame>
@@ -217,24 +216,26 @@ function MarketCard({ market }: { market: SmartMoneyMarket }) {
       </div>
 
       {specialists.length > 0 ? (
-        <div className="overflow-hidden border border-ink-3">
-          <div className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
-            <span>wallet</span>
-            <span>outcome</span>
-            <span>pnl</span>
-            <span>roi</span>
-          </div>
-          {specialists.map((specialist) => (
-            <div
-              key={`${market.conditionId}-${specialist.wallet}-${specialist.currentOutcome}`}
-              className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-dashed border-ink-3 px-3 py-2 last:border-b-0"
-            >
-              <span className="truncate font-mono text-[11px] text-ink">{specialist.displayLabel}</span>
-              <span className="font-mono text-[10px] uppercase text-accent">{specialist.currentOutcome}</span>
-              <span className="font-mono text-[10px] text-ink-2">{formatCurrency(specialist.realizedPnl)}</span>
-              <span className="font-mono text-[10px] text-ink-2">{formatPercent(specialist.roi)}</span>
+        <div className="overflow-x-auto border border-ink-3">
+          <div className="min-w-[420px]">
+            <div className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+              <span>wallet</span>
+              <span>outcome</span>
+              <span>pnl</span>
+              <span>roi</span>
             </div>
-          ))}
+            {specialists.map((specialist) => (
+              <div
+                key={`${market.conditionId}-${specialist.wallet}-${specialist.currentOutcome}`}
+                className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-dashed border-ink-3 px-3 py-2 last:border-b-0"
+              >
+                <span className="truncate font-mono text-[11px] text-ink">{specialist.displayLabel}</span>
+                <span className="font-mono text-[10px] uppercase text-accent">{specialist.currentOutcome}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(specialist.realizedPnl)}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatPercent(specialist.roi)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -243,6 +244,74 @@ function MarketCard({ market }: { market: SmartMoneyMarket }) {
         <span>positions {relativeTime(market.marketDataRefreshedAt)}</span>
       </footer>
     </article>
+  );
+}
+
+function EmptyMarketSurface() {
+  const rows = ["market", "odds", "specialists", "entry", "volume"];
+
+  return (
+    <section className="border border-dashed border-ink-3 bg-paper-2">
+      <div className="grid gap-5 p-4 sm:p-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="flex min-h-[260px] flex-col justify-between border border-ink-3 bg-paper p-4">
+          <div className="flex items-center justify-between border-b border-dashed border-ink-3 pb-3">
+            <span className="font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
+              signal surface
+            </span>
+            <span className="h-2 w-2 bg-accent" aria-hidden="true" />
+          </div>
+          <div className="grid gap-3 py-6">
+            {rows.map((row, index) => (
+              <div
+                key={row}
+                className="grid grid-cols-[86px_1fr] items-center gap-3 sm:grid-cols-[112px_1fr]"
+              >
+                <span className="font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+                  {row}
+                </span>
+                <span
+                  className={clsx(
+                    "block h-2 border border-ink-3 bg-ink-bg-soft",
+                    index % 2 === 0 ? "w-full" : "w-2/3",
+                  )}
+                />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <SkeletonMetric />
+            <SkeletonMetric />
+            <SkeletonMetric />
+          </div>
+        </div>
+
+        <div className="grid content-between gap-4 border border-ink-3 bg-ink-bg-soft p-4">
+          <div>
+            <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
+              specialist table
+            </div>
+            <div className="grid gap-2">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div key={index} className="grid grid-cols-[1fr_52px] gap-3 border-b border-dashed border-ink-3 pb-2">
+                  <span className={clsx("h-2 bg-paper", index % 3 === 0 ? "w-5/6" : "w-2/3")} />
+                  <span className="h-2 bg-paper" />
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="h-24 border border-dashed border-ink-3 bg-paper" />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SkeletonMetric() {
+  return (
+    <div className="border border-dashed border-ink-3 bg-ink-bg-soft p-3">
+      <div className="mb-2 h-2 w-2/3 bg-paper" />
+      <div className="h-3 w-1/2 bg-paper" />
+    </div>
   );
 }
 

@@ -124,7 +124,7 @@ export function LiveDot({ label = "LIVE" }: { label?: string }) {
   return (
     <div className="flex items-center gap-[6px]">
       <span className="live-dot" aria-hidden="true" />
-      <span className="text-[10px] uppercase tracking-[1px] text-ink-2 font-mono">
+      <span className="hidden text-[10px] uppercase tracking-[1px] text-ink-2 font-mono sm:inline">
         {label}
       </span>
     </div>
@@ -141,13 +141,13 @@ export function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div className="flex-1 border border-ink-3 rounded-[2px] px-[14px] py-3 bg-paper-2">
+    <div className="min-w-0 flex-1 border border-ink-3 rounded-[2px] px-3 py-3 bg-paper-2 sm:px-[14px]">
       <div className="text-[9px] uppercase tracking-[1.2px] text-ink-3 font-mono mb-[6px]">
         {label}
       </div>
       <div
         className={clsx(
-          "text-[22px] font-medium font-mono leading-[1.2]",
+          "truncate text-[20px] font-medium font-mono leading-[1.2] sm:text-[22px]",
           highlight ? "text-accent" : "text-ink",
         )}
         style={{ letterSpacing: "-0.01em" }}

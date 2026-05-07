@@ -15,8 +15,8 @@ export function NavBar() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <header className="flex items-center justify-between px-[22px] py-3 border-b border-ink-3 bg-paper-2">
-      <div className="flex items-center gap-6">
+    <header className="flex items-center justify-between gap-3 border-b border-ink-3 bg-paper-2 px-4 py-3 sm:px-[22px]">
+      <div className="flex min-w-0 items-center gap-4 sm:gap-6">
         <Link href="/" className="flex items-center gap-2">
           <span className="w-2 h-2 bg-accent inline-block" aria-hidden="true" />
           <span className="text-[15px] uppercase tracking-[2px] font-mono text-ink">
@@ -40,9 +40,9 @@ export function NavBar() {
           ))}
         </nav>
       </div>
-      <div className="flex items-center gap-[10px]">
+      <div className="flex shrink-0 items-center gap-[10px]">
         <LiveDot />
-        <div className="w-6 h-6 rounded-[2px] border border-ink-3" />
+        <div className="hidden h-6 w-6 rounded-[2px] border border-ink-3 sm:block" />
       </div>
     </header>
   );
