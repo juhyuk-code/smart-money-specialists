@@ -203,6 +203,18 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
           },
         };
       }
+      if (capabilityId === "wallet.scrape.get_kol_identity") {
+        assert.equal(args.address, "0xd235973291b2b75ff4070e9c0b01728c520b0f29");
+        return {
+          people: [
+            {
+              display_name: "BTC Whale",
+              twitter_username: "btcWhale",
+              kol_sources: ["identity_graph"],
+            },
+          ],
+        };
+      }
       throw new Error(`Unexpected capability ${capabilityId}`);
     },
   });
@@ -222,13 +234,16 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
   assert.deepEqual(holders, [
     {
       wallet: "0xd235973291b2b75ff4070e9c0b01728c520b0f29",
-      displayLabel: null,
-      knownHandle: null,
+      displayLabel: "BTC Whale",
+      knownHandle: "@btcWhale",
       outcome: "YES",
       size: 1200,
       averageEntry: 0.02,
+      identitySources: ["identity_graph"],
     },
   ]);
+  assert.equal(api.getDiagnostics().identityLookupsRequested, 1);
+  assert.equal(api.getDiagnostics().identityLabelsResolved, 1);
 });
 
 test("preference adapter maps KOL wallets and handles unavailable closed PnL", async () => {
@@ -273,6 +288,10 @@ test("preference adapter maps KOL wallets and handles unavailable closed PnL", a
     rawPnlRows: 0,
     normalizedClosedPositions: 0,
     taggedClosedMarkets: 0,
+    identityLookupsRequested: 0,
+    identityLookupsSucceeded: 0,
+    identityLookupsFailed: 0,
+    identityLabelsResolved: 0,
     pnlErrors: [],
   });
 });

@@ -3,12 +3,14 @@ const CAPABILITIES = {
   getMarket: "polymarket.discovery.search_markets",
   listKnownKols: "wallet.scrape.list_known_kols",
   marketKolHolders: "wallet.scrape.get_market_kol_holders",
+  kolIdentity: "wallet.scrape.get_kol_identity",
   realizedPnl: null,
 };
 
 const DEFAULT_KOL_LIMIT = 100;
 const DEFAULT_TRENDING_LIMIT = 12;
 const DEFAULT_HOLDER_LIMIT = 20;
+const DEFAULT_IDENTITY_LOOKUP_LIMIT = 8;
 const DEFAULT_CLOSED_POSITION_LIMIT = 250;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,6 +32,7 @@ export class PreferenceMcpApi {
     this.closedPositionsCache = null;
     this.closedMarketTagsCache = null;
     this.marketCache = new Map();
+    this.identityCache = new Map();
     this.diagnostics = {
       requestedKolLimit: kolLimit,
       requestedTrendingLimit: trendingLimit,
@@ -42,6 +45,10 @@ export class PreferenceMcpApi {
       rawPnlRows: 0,
       normalizedClosedPositions: 0,
       taggedClosedMarkets: 0,
+      identityLookupsRequested: 0,
+      identityLookupsSucceeded: 0,
+      identityLookupsFailed: 0,
+      identityLabelsResolved: 0,
       pnlErrors: [],
     };
   }
@@ -187,8 +194,54 @@ export class PreferenceMcpApi {
       condition_id: conditionId,
       limit: DEFAULT_HOLDER_LIMIT,
     });
-    const holders = normalizeHolders(payload);
+    const holders = await this.enrichHolderIdentities(normalizeHolders(payload));
     return { holders, fetchedAt };
+  }
+
+  async enrichHolderIdentities(holders) {
+    const targets = holders
+      .filter((holder) => holder.wallet && !holder.knownHandle && !holder.displayLabel)
+      .sort((a, b) => (b.size ?? 0) - (a.size ?? 0))
+      .slice(0, DEFAULT_IDENTITY_LOOKUP_LIMIT);
+
+    const identities = await Promise.all(targets.map((holder) => this.resolveWalletIdentity(holder.wallet)));
+    const byWallet = new Map(identities.filter(Boolean).map((identity) => [identity.wallet, identity]));
+
+    return holders.map((holder) => {
+      const identity = byWallet.get(holder.wallet);
+      if (!identity) return holder;
+      return {
+        ...holder,
+        displayLabel: holder.displayLabel ?? identity.displayLabel,
+        knownHandle: holder.knownHandle ?? identity.knownHandle,
+        identitySources: identity.sources,
+      };
+    });
+  }
+
+  async resolveWalletIdentity(walletValue) {
+    const wallet = normalizeWallet(walletValue);
+    if (!wallet) return null;
+    if (this.identityCache.has(wallet)) return this.identityCache.get(wallet);
+
+    this.diagnostics.identityLookupsRequested += 1;
+    try {
+      const payload = await this.invokeCapability(CAPABILITIES.kolIdentity, {
+        address: wallet,
+        limit: 5,
+      });
+      const identity = normalizeIdentity(payload, wallet);
+      if (identity) {
+        this.diagnostics.identityLabelsResolved += 1;
+      }
+      this.diagnostics.identityLookupsSucceeded += 1;
+      this.identityCache.set(wallet, identity);
+      return identity;
+    } catch {
+      this.diagnostics.identityLookupsFailed += 1;
+      this.identityCache.set(wallet, null);
+      return null;
+    }
   }
 
   async resolvePolymarketUrl(url) {
@@ -446,14 +499,42 @@ function normalizeHolders(payload) {
 function normalizeHolder(row, fallbackOutcome) {
   const wallet = normalizeWallet(row.address_normalized ?? row.address ?? row.wallet);
   if (!wallet) return null;
+  const knownHandle = bestHandle(row);
   return {
     wallet,
-    displayLabel: row.displayLabel ?? row.display_label ?? row.name ?? row.primary_kol_name ?? row.twitter_username ?? null,
-    knownHandle: bestHandle(row),
+    displayLabel: bestDisplayLabel(row) ?? knownHandle,
+    knownHandle,
     outcome: String(row.outcome ?? row.side ?? fallbackOutcome ?? "UNKNOWN").toUpperCase(),
     size: toNumber(row.size ?? row.balance ?? row.shares ?? row.total_value_usd ?? row.value) ?? 0,
     averageEntry: toNumber(row.averageEntry ?? row.average_entry ?? row.avg_entry ?? row.avgPrice ?? row.avg_price),
   };
+}
+
+function normalizeIdentity(payload, wallet) {
+  const rows = [
+    ...arrayFrom(payload, ["people", "identities", "results", "rows", "data", "matches"]),
+    payload?.person,
+    payload?.identity,
+    payload?.profile,
+    payload,
+  ].filter((row) => row && typeof row === "object");
+
+  for (const row of rows) {
+    const nested = [row, row.person, row.identity, row.profile].filter(Boolean);
+    for (const candidate of nested) {
+      const knownHandle = bestHandle(candidate);
+      const displayLabel = bestDisplayLabel(candidate) ?? knownHandle;
+      if (!displayLabel && !knownHandle) continue;
+      return {
+        wallet,
+        displayLabel,
+        knownHandle,
+        sources: candidateSources(candidate),
+      };
+    }
+  }
+
+  return null;
 }
 
 function realizedPnlRows(payload) {
@@ -461,16 +542,43 @@ function realizedPnlRows(payload) {
 }
 
 function bestHandle(row) {
-  const handle = row.twitter_username ?? row.primary_kol_name ?? row.display_name ?? row.name;
+  const handle =
+    row?.knownHandle ??
+    row?.known_handle ??
+    row?.twitter_username ??
+    row?.x_username ??
+    row?.screen_name ??
+    row?.handle ??
+    row?.username ??
+    row?.primary_kol_name;
   if (!handle) return null;
-  const value = String(handle);
+  const value = String(handle).trim();
+  if (!value || /^0x[a-fA-F0-9]{40}$/.test(value)) return null;
   return value.startsWith("@") ? value : `@${value}`;
 }
 
+function bestDisplayLabel(row) {
+  const value =
+    row?.displayLabel ??
+    row?.display_label ??
+    row?.display_name ??
+    row?.label ??
+    row?.name ??
+    row?.primary_kol_name;
+  if (!value) return null;
+  const label = String(value).trim();
+  if (!label || /^0x[a-fA-F0-9]{40}$/.test(label)) return null;
+  return label;
+}
+
 function candidateSources(row) {
-  const sources = new Set(parseArray(row.kol_sources));
-  if (row.smart_wallet) sources.add("smart_wallet");
-  if (row.is_known_kol) sources.add("known_kol");
+  const sources = new Set([
+    ...parseArray(row?.kol_sources),
+    ...parseArray(row?.sources),
+    ...parseArray(row?.identity_sources),
+  ]);
+  if (row?.smart_wallet) sources.add("smart_wallet");
+  if (row?.is_known_kol) sources.add("known_kol");
   if (sources.size === 0) sources.add("preference_mcp");
   return [...sources];
 }
