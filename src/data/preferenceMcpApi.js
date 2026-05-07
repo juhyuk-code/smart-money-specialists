@@ -6,24 +6,44 @@ const CAPABILITIES = {
   realizedPnl: "pmsg__get_subgraph_realized_pnl",
 };
 
-const DEFAULT_KOL_LIMIT = 40;
+const DEFAULT_KOL_LIMIT = 250;
 const DEFAULT_TRENDING_LIMIT = 50;
 const DEFAULT_HOLDER_LIMIT = 50;
-const CLOSED_POSITION_LIMIT = 100;
+const DEFAULT_CLOSED_POSITION_LIMIT = 250;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export class PreferenceMcpApi {
-  constructor({ invokeCapability, kolLimit = DEFAULT_KOL_LIMIT, trendingLimit = DEFAULT_TRENDING_LIMIT } = {}) {
+  constructor({
+    invokeCapability,
+    kolLimit = DEFAULT_KOL_LIMIT,
+    trendingLimit = DEFAULT_TRENDING_LIMIT,
+    closedPositionLimit = DEFAULT_CLOSED_POSITION_LIMIT,
+  } = {}) {
     if (typeof invokeCapability !== "function") {
       throw new Error("PreferenceMcpApi requires an invokeCapability function");
     }
     this.invokeCapability = invokeCapability;
     this.kolLimit = kolLimit;
     this.trendingLimit = trendingLimit;
+    this.closedPositionLimit = closedPositionLimit;
     this.walletCache = null;
     this.closedPositionsCache = null;
     this.closedMarketTagsCache = null;
     this.marketCache = new Map();
+    this.diagnostics = {
+      requestedKolLimit: kolLimit,
+      requestedTrendingLimit: trendingLimit,
+      requestedClosedPositionLimit: closedPositionLimit,
+      knownWalletRows: 0,
+      normalizedWallets: 0,
+      pnlWalletsRequested: 0,
+      pnlWalletsSucceeded: 0,
+      pnlWalletsFailed: 0,
+      rawPnlRows: 0,
+      normalizedClosedPositions: 0,
+      taggedClosedMarkets: 0,
+      pnlErrors: [],
+    };
   }
 
   async listKnownWallets() {
@@ -33,6 +53,7 @@ export class PreferenceMcpApi {
       require_positions: true,
     });
     const rows = arrayFrom(payload, ["rows", "kols", "results", "data"]);
+    this.diagnostics.knownWalletRows = rows.length;
     const wallets = {};
 
     for (const row of rows) {
@@ -44,6 +65,7 @@ export class PreferenceMcpApi {
       };
     }
 
+    this.diagnostics.normalizedWallets = Object.keys(wallets).length;
     this.walletCache = { wallets };
     return this.walletCache;
   }
@@ -56,24 +78,37 @@ export class PreferenceMcpApi {
 
     await Promise.all(
       Object.keys(wallets).map(async (wallet) => {
+        this.diagnostics.pnlWalletsRequested += 1;
         try {
           const payload = await this.invokeCapability(CAPABILITIES.realizedPnl, {
             account: wallet,
-            limit: CLOSED_POSITION_LIMIT,
+            limit: this.closedPositionLimit,
           });
-          for (const item of realizedPnlRows(payload)) {
+          const rows = realizedPnlRows(payload);
+          this.diagnostics.rawPnlRows += rows.length;
+          for (const item of rows) {
             const position = normalizeClosedPosition(wallet, item);
             if (!position) continue;
             positions.push(position);
             marketTags[position.marketId] = inferTags(item);
           }
-        } catch {
+          this.diagnostics.pnlWalletsSucceeded += 1;
+        } catch (error) {
           // Some upstream PnL subgraph queries can time out for active wallets.
           // Keep the adapter usable and let the registry audit show reduced coverage.
+          this.diagnostics.pnlWalletsFailed += 1;
+          if (this.diagnostics.pnlErrors.length < 8) {
+            this.diagnostics.pnlErrors.push({
+              wallet,
+              message: error?.message ?? String(error),
+            });
+          }
         }
       }),
     );
 
+    this.diagnostics.normalizedClosedPositions = positions.length;
+    this.diagnostics.taggedClosedMarkets = Object.keys(marketTags).length;
     this.closedPositionsCache = { positions };
     this.closedMarketTagsCache = { marketTags };
     return this.closedPositionsCache;
@@ -137,6 +172,10 @@ export class PreferenceMcpApi {
     }
     return slugs.map((slug) => this.marketCache.get(slug)).filter(Boolean);
   }
+
+  getDiagnostics() {
+    return this.diagnostics;
+  }
 }
 
 export class PreferenceMcpHttpClient {
@@ -184,6 +223,7 @@ export function createPreferenceMcpApiFromEnv() {
     invokeCapability: (capabilityId, args) => client.invokeCapability(capabilityId, args),
     kolLimit: numberFromEnv("PREFERENCE_KOL_LIMIT", DEFAULT_KOL_LIMIT),
     trendingLimit: numberFromEnv("PREFERENCE_TRENDING_LIMIT", DEFAULT_TRENDING_LIMIT),
+    closedPositionLimit: numberFromEnv("PREFERENCE_CLOSED_POSITION_LIMIT", DEFAULT_CLOSED_POSITION_LIMIT),
   });
 }
 

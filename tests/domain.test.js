@@ -243,4 +243,18 @@ test("preference adapter maps KOL wallets and closed PnL payloads", async () => 
   assert.equal(positions[0].wallet, "0xd235973291b2b75ff4070e9c0b01728c520b0f29");
   assert.equal(positions[0].realizedPnl, 900);
   assert.deepEqual(marketTags["0xmarket"], ["Macro"]);
+  assert.deepEqual(api.getDiagnostics(), {
+    requestedKolLimit: 250,
+    requestedTrendingLimit: 50,
+    requestedClosedPositionLimit: 250,
+    knownWalletRows: 1,
+    normalizedWallets: 1,
+    pnlWalletsRequested: 1,
+    pnlWalletsSucceeded: 1,
+    pnlWalletsFailed: 0,
+    rawPnlRows: 1,
+    normalizedClosedPositions: 1,
+    taggedClosedMarkets: 1,
+    pnlErrors: [],
+  });
 });
