@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { FeedSurface } from "@/components/ProductSurfaces";
 
 export default function FeedPage() {
-  redirect("/");
+  return <FeedSurface />;
 }

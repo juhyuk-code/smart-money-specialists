@@ -1,5 +1,5 @@
 import { LeadersSurface } from "@/components/ProductSurfaces";
 
-export default function HomePage() {
+export default function LeadersPage() {
   return <LeadersSurface />;
 }

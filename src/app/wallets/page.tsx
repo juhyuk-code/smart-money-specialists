@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { WalletsSurface } from "@/components/ProductSurfaces";
 
 export default function WalletsIndex() {
-  redirect("/");
+  return <WalletsSurface />;
 }

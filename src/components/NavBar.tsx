@@ -6,7 +6,10 @@ import clsx from "clsx";
 import { LiveDot } from "./ui";
 
 const ITEMS = [
+  { label: "LEADERS", href: "/" },
+  { label: "FEED", href: "/feed" },
   { label: "MARKETS", href: "/markets" },
+  { label: "WALLETS", href: "/wallets" },
 ];
 
 export function NavBar() {
@@ -23,7 +26,7 @@ export function NavBar() {
             PREF
           </span>
         </Link>
-        <nav className="flex items-center gap-[2px]">
+        <nav className="-mr-2 flex items-center gap-[2px] overflow-x-auto pr-2">
           {ITEMS.map((it) => (
             <Link
               key={it.href}

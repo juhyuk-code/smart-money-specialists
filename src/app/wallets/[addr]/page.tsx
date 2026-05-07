@@ -1,10 +1,9 @@
-import { redirect } from "next/navigation";
+import { WalletDetailSurface } from "@/components/ProductSurfaces";
 
 export default function WalletDetailPage({
-  params: _params,
+  params,
 }: {
   params: { addr: string };
 }) {
-  void _params;
-  redirect("/");
+  return <WalletDetailSurface wallet={decodeURIComponent(params.addr)} />;
 }
