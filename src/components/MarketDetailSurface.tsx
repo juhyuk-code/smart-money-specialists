@@ -24,9 +24,11 @@ import {
 
 export function MarketDetailSurface({ marketId }: { marketId: string }) {
   const [market, setMarket] = useState<SmartMoneyMarket | null>(null);
+  const [snapshotMarkets, setSnapshotMarkets] = useState<SmartMoneyMarket[]>([]);
 
   useEffect(() => {
     const snapshot = readSnapshot();
+    if (snapshot) setSnapshotMarkets(snapshot.markets);
     const localMarket = snapshot?.markets.find((item) => {
       return item.marketSlug === marketId || item.conditionId === marketId;
     });
@@ -57,6 +59,11 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
   const gaps = marketOutcomeGaps(market);
   const hasGap = typeof gap.gap === "number";
   const gapIsPositive = (gap.gap ?? 0) >= 0;
+  const relatedMarkets = snapshotMarkets
+    .filter((item) => item.conditionId !== market.conditionId)
+    .filter((item) => item.parentTags.some((tag) => categories.includes(tag)))
+    .sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0))
+    .slice(0, 4);
 
   return (
     <Frame>
@@ -160,10 +167,46 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
                 <SparkLine up={(lead?.totalCurrentSize ?? 0) >= 0} width={220} height={72} />
               </div>
             </section>
+
+            <RelatedMarketsPanel markets={relatedMarkets} />
           </aside>
         </section>
       </main>
     </Frame>
+  );
+}
+
+function RelatedMarketsPanel({ markets }: { markets: SmartMoneyMarket[] }) {
+  return (
+    <section className="surface-card rounded-[3px] p-4">
+      <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
+        nearby markets
+      </div>
+      <div className="grid gap-2">
+        {markets.length > 0 ? markets.map((market) => {
+          const gap = marketDiscrepancy(market);
+          return (
+            <Link
+              key={market.conditionId}
+              href={marketDetailPath(market)}
+              className="row-hover grid gap-2 rounded-[2px] border border-ink-3 bg-ink-bg-soft px-3 py-2"
+            >
+              <div className="line-clamp-2 font-mono text-[11px] leading-snug text-ink">{market.question}</div>
+              <div className="flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
+                <span>{market.parentTags[0] ?? "market"}</span>
+                <span className={(gap.gap ?? 0) >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}>
+                  {formatSignedPercent(gap.gap)}
+                </span>
+              </div>
+            </Link>
+          );
+        }) : (
+          <div className="rounded-[2px] border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-6 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
+            watching
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
