@@ -39,10 +39,10 @@ export function FollowButton({
         const next = toggleWatch(target);
         setFollowed(next.some((item) => item.type === target.type && item.id === target.id));
       }}
-      className={`border px-3 py-2 font-mono text-[10px] uppercase tracking-[1px] transition-colors ${
+      className={`rounded-[2px] border px-3 py-2 font-mono text-[10px] uppercase tracking-[1px] transition-colors active:translate-y-px ${
         followed
-          ? "border-accent bg-[rgba(96,165,250,0.12)] text-accent"
-          : "border-ink-3 bg-transparent text-ink-2 hover:border-accent hover:text-accent"
+          ? "border-accent bg-[rgba(97,168,255,0.13)] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+          : "border-ink-3 bg-[rgba(255,255,255,0.015)] text-ink-2 hover:border-accent hover:bg-[rgba(97,168,255,0.08)] hover:text-accent"
       } ${compact ? "px-2 py-1 tracking-[0.7px]" : ""} ${className}`}
     >
       {followed ? "following" : "follow"}

@@ -80,6 +80,8 @@ export function MarketsDashboard() {
   );
   const totalVolume = topVolumeMarkets.reduce((sum, market) => sum + (market.volume24h ?? 0), 0);
   const largestGap = visibleMarkets[0] ? marketDiscrepancy(visibleMarkets[0]) : null;
+  const leadMarket = visibleMarkets[0] ?? null;
+  const gridMarkets = leadMarket ? visibleMarkets.slice(1) : visibleMarkets;
 
   return (
     <Frame>
@@ -129,17 +131,95 @@ export function MarketsDashboard() {
           </section>
         </section>
 
-        {visibleMarkets.length > 0 ? (
-          <section className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-4">
-            {visibleMarkets.map((market, index) => (
-              <MarketGapCard key={market.conditionId} market={market} rank={index + 1} />
-            ))}
+        {leadMarket ? (
+          <section className="grid gap-[14px]">
+            <FeaturedMarketCard market={leadMarket} />
+            <section className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-4">
+              {gridMarkets.map((market, index) => (
+                <MarketGapCard key={market.conditionId} market={market} rank={index + 2} />
+              ))}
+            </section>
           </section>
         ) : (
           <EmptyOverviewSurface registryRefreshedAt={registryRefreshedAt} />
         )}
       </main>
     </Frame>
+  );
+}
+
+function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
+  const gap = marketDiscrepancy(market);
+  const href = marketDetailPath(market);
+  const gapIsPositive = (gap.gap ?? 0) >= 0;
+  const totalHolders = specialistCount(market);
+  const hasGap = typeof gap.gap === "number";
+
+  return (
+    <article className="surface-card group relative overflow-hidden rounded-[3px]">
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-accent via-[var(--positive)] to-[var(--negative)] opacity-80" />
+      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Link href={href} className="block min-w-0 p-4 sm:p-5">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <div className="mb-3 flex flex-wrap gap-1">
+                <Pill tone="accent">top discrepancy</Pill>
+                <Pill>{market.parentTags[0] ?? "market"}</Pill>
+                <Pill>{formatCurrency(market.volume24h)} 24h</Pill>
+              </div>
+              <h2 className="max-w-[980px] font-mono text-[22px] font-medium leading-tight text-ink transition-colors group-hover:text-white sm:text-[30px]">
+                {market.question}
+              </h2>
+            </div>
+            <div className="shrink-0 text-left sm:text-right">
+              <div className={clsx("font-mono text-[38px] leading-none sm:text-[46px]", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
+                {formatSignedPercent(gap.gap)}
+              </div>
+              <div className="mt-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
+                {gap.outcome} smart gap
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
+            <div className="grid gap-3">
+              <DiscrepancyTrack label="holders" value={gap.smartShare} tone="green" />
+              <DiscrepancyTrack label="market" value={gap.marketPrice} tone="red" />
+            </div>
+            <div className="flex min-h-[96px] items-end justify-end border border-dashed border-ink-3 bg-ink-bg-soft p-3">
+              <SparkLine up={gapIsPositive} width={228} height={82} />
+            </div>
+          </div>
+        </Link>
+
+        <aside className="grid border-t border-ink-3 bg-paper/70 xl:border-l xl:border-t-0">
+          <div className="grid grid-cols-2 border-b border-ink-3">
+            <FeaturedMetric label="holders" value={String(totalHolders)} />
+            <FeaturedMetric label="holder size" value={formatCurrency(gap.holderSize)} tone="green" />
+          </div>
+          <div className="grid grid-cols-2 border-b border-ink-3">
+            <FeaturedMetric label="market price" value={formatEntry(gap.marketPrice)} tone="red" />
+            <FeaturedMetric label="signal" value={hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"} />
+          </div>
+          <div className="flex items-center justify-between gap-3 p-4">
+            <div className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
+              ranked by gap magnitude
+            </div>
+            <FollowButton
+              compact
+              target={{
+                type: "market",
+                id: market.marketSlug || market.conditionId,
+                label: market.question,
+                href,
+                subtitle: `${gap.outcome} gap ${formatSignedPercent(gap.gap)}`,
+                tags: market.parentTags,
+              }}
+            />
+          </div>
+        </aside>
+      </div>
+    </article>
   );
 }
 
@@ -215,6 +295,56 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
         </div>
       </div>
     </article>
+  );
+}
+
+function FeaturedMetric({
+  label,
+  value,
+  tone = "ink",
+}: {
+  label: string;
+  value: string;
+  tone?: "ink" | "green" | "red";
+}) {
+  return (
+    <div className="min-w-0 p-4">
+      <div className="mb-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
+      <div
+        className={clsx(
+          "truncate font-mono text-[16px] text-ink",
+          tone === "green" && "text-[var(--positive)]",
+          tone === "red" && "text-[var(--negative)]",
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DiscrepancyTrack({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | null;
+  tone: "green" | "red";
+}) {
+  const normalized = typeof value === "number" ? value : 0;
+  const width = `${Math.max(0, Math.min(100, normalized * 100))}%`;
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[1px]">
+        <span className="text-ink-3">{label}</span>
+        <span className="text-ink-2">{typeof value === "number" ? `${Math.round(value * 100)}%` : "--"}</span>
+      </div>
+      <div className="h-[8px] overflow-hidden bg-ink-bg-soft">
+        <div className={clsx("h-full", tone === "green" ? "bg-[var(--positive)]" : "bg-[var(--negative)]")} style={{ width }} />
+      </div>
+    </div>
   );
 }
 
