@@ -14,11 +14,13 @@ import {
   readSnapshot,
   relativeTime,
   saveSnapshot,
+  scanCustomMarket,
   specialistCount,
   type SmartMoneyMarket,
 } from "@/lib/smartMoney";
 
 type SortMode = "volume" | "specialists" | "skew";
+type ScanState = "idle" | "scanning" | "settled";
 
 export function MarketsDashboard() {
   const [markets, setMarkets] = useState<SmartMoneyMarket[]>([]);
@@ -27,6 +29,8 @@ export function MarketsDashboard() {
   const [sortMode, setSortMode] = useState<SortMode>("volume");
   const [query, setQuery] = useState("");
   const [selectedMarketId, setSelectedMarketId] = useState<string | null>(null);
+  const [customUrl, setCustomUrl] = useState("");
+  const [scanState, setScanState] = useState<ScanState>("idle");
 
   useEffect(() => {
     const snapshot = readSnapshot();
@@ -83,6 +87,39 @@ export function MarketsDashboard() {
   const topSignal = [...readyMarkets].sort((a, b) => specialistCount(b) - specialistCount(a))[0];
   const selectedMarket = markets.find((market) => market.conditionId === selectedMarketId) ?? null;
 
+  async function handleCustomScan(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const url = customUrl.trim();
+    if (!url || scanState === "scanning") return;
+
+    setScanState("scanning");
+    try {
+      const payload = await scanCustomMarket(url);
+      if (!payload) {
+        setScanState("settled");
+        return;
+      }
+
+      setMarkets((current) => {
+        const merged = mergeMarkets(payload.markets, current);
+        saveSnapshot({
+          dataSource: payload.dataSource,
+          registryRefreshedAt: payload.registryRefreshedAt ?? registryRefreshedAt,
+          markets: merged,
+        });
+        return merged;
+      });
+      setRegistryRefreshedAt(payload.registryRefreshedAt ?? registryRefreshedAt);
+      setCategory("all");
+      setQuery("");
+      setSelectedMarketId(payload.markets[0]?.conditionId ?? null);
+      setCustomUrl("");
+      setScanState("settled");
+    } catch {
+      setScanState("settled");
+    }
+  }
+
   return (
     <Frame>
       <NavBar />
@@ -116,6 +153,32 @@ export function MarketsDashboard() {
           <StatCard label="tracked wallets" value={hasMarkets ? String(trackedWallets.size) : "--"} />
           <StatCard label="latest snapshot" value={hasMarkets ? relativeTime(registryRefreshedAt) : "--"} highlight />
         </section>
+
+        <form
+          onSubmit={handleCustomScan}
+          className="mb-5 grid gap-2 border border-ink-3 bg-paper-2 p-3 sm:grid-cols-[1fr_auto]"
+        >
+          <label className="sr-only" htmlFor="custom-market-url">
+            Polymarket URL
+          </label>
+          <input
+            id="custom-market-url"
+            value={customUrl}
+            onChange={(event) => {
+              setCustomUrl(event.target.value);
+              if (scanState !== "idle") setScanState("idle");
+            }}
+            placeholder="Paste Polymarket market URL"
+            className="h-9 min-w-0 border border-ink-3 bg-paper px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none placeholder:text-ink-3 focus:border-accent"
+          />
+          <button
+            type="submit"
+            disabled={!customUrl.trim() || scanState === "scanning"}
+            className="h-9 border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent transition-colors hover:bg-[rgba(96,165,250,0.14)] disabled:cursor-default disabled:border-ink-3 disabled:bg-transparent disabled:text-ink-3"
+          >
+            {scanState === "scanning" ? "scanning" : "scan market"}
+          </button>
+        </form>
 
         <section className="mb-5 flex flex-col gap-3 border-y border-dashed border-ink-3 py-3 lg:flex-row lg:items-center">
           <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -507,4 +570,13 @@ function priceSkew(market: SmartMoneyMarket) {
   const prices = Object.values(market.currentPrices);
   if (prices.length < 2) return 0;
   return prices[0] - prices[1];
+}
+
+function mergeMarkets(incoming: SmartMoneyMarket[], existing: SmartMoneyMarket[]) {
+  const byId = new Map<string, SmartMoneyMarket>();
+  for (const market of incoming) byId.set(market.conditionId, market);
+  for (const market of existing) {
+    if (!byId.has(market.conditionId)) byId.set(market.conditionId, market);
+  }
+  return Array.from(byId.values());
 }

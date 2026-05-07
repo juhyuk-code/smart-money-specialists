@@ -85,6 +85,24 @@ export async function fetchMarkets(): Promise<MarketsPayload | null> {
   };
 }
 
+export async function scanCustomMarket(url: string): Promise<MarketsPayload | null> {
+  const response = await fetch("/api/smart-money/custom-scan", {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ url }),
+  });
+  const data = await response.json();
+  if (!response.ok || !Array.isArray(data.markets) || data.markets.length === 0) return null;
+  return {
+    dataSource: data.dataSource,
+    registryRefreshedAt: data.registryRefreshedAt ?? data.markets[0]?.registryRefreshedAt ?? null,
+    markets: data.markets,
+  };
+}
+
 export function specialistCount(market: SmartMoneyMarket) {
   return market.outcomes.reduce((sum, outcome) => sum + outcome.specialistCount, 0);
 }
