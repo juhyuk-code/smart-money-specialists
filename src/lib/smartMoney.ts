@@ -45,7 +45,8 @@ export type Snapshot = MarketsPayload & {
   savedAt: string;
 };
 
-export const SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
+export const SNAPSHOT_KEY = "pref:last-market-snapshot";
+const LEGACY_SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
 
 export function saveSnapshot(payload: MarketsPayload) {
   if (typeof window === "undefined" || payload.markets.length === 0) return;
@@ -61,7 +62,8 @@ export function saveSnapshot(payload: MarketsPayload) {
 export function readSnapshot(): Snapshot | null {
   if (typeof window === "undefined") return null;
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(SNAPSHOT_KEY) ?? "null");
+    const rawSnapshot = window.localStorage.getItem(SNAPSHOT_KEY) ?? window.localStorage.getItem(LEGACY_SNAPSHOT_KEY);
+    const parsed = JSON.parse(rawSnapshot ?? "null");
     if (!parsed || !Array.isArray(parsed.markets) || parsed.markets.length === 0) return null;
     return parsed;
   } catch {

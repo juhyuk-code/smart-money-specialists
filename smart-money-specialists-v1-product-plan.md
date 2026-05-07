@@ -1,4 +1,4 @@
-# Smart Money Specialists V1: Problems, Solutions, and Product Direction
+# pref V1: Problems, Solutions, and Product Direction
 
 Prepared: 2026-05-06
 
@@ -10,7 +10,7 @@ Source PRD: `smart-money-specialists-prd.md`
 
 ## 1. Executive Summary
 
-Smart Money Specialists is a Polymarket intelligence panel for Preference that answers one question better than any generic price or volume dashboard:
+pref is a Polymarket intelligence panel for Preference that answers one question better than any generic price or volume dashboard:
 
 > Which side are the proven specialists in this category currently positioned on?
 
@@ -423,7 +423,7 @@ Design principles:
 Recommended desktop layout:
 
 - Top bar:
-  - product label: `Smart Money Specialists`
+  - product label: `pref`
   - freshness text: `Registry refreshed <date/time>`
   - URL scan input
   - login state / account button
@@ -553,7 +553,7 @@ Canvas: 1200x675.
 
 Recommended layout:
 
-- Top-left: Preference mark and `Smart Money Specialists`.
+- Top-left: `pref`.
 - Top-right: timestamp.
 - Main title: market question, two lines max.
 - Price strip: YES/NO current prices.

@@ -13,13 +13,13 @@ export function renderShareSvg(scan, selectedOutcome = null) {
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
   <rect width="1200" height="675" fill="#f7f4ee"/>
   <rect x="48" y="42" width="1104" height="591" rx="8" fill="#151515"/>
-  <text x="82" y="92" fill="#f7f4ee" font-family="Arial, sans-serif" font-size="28" font-weight="700">Preference · Smart Money Specialists</text>
+  <text x="82" y="92" fill="#f7f4ee" font-family="Arial, sans-serif" font-size="28" font-weight="700">pref</text>
   <text x="880" y="92" fill="#a7aca2" font-family="Arial, sans-serif" font-size="20">${escapeXml(formatDate(generatedAt))}</text>
   <text x="82" y="170" fill="#f7f4ee" font-family="Arial, sans-serif" font-size="44" font-weight="700">${safeTitle}</text>
   <text x="82" y="250" fill="#ffcf5a" font-family="Arial, sans-serif" font-size="52" font-weight="700">${escapeXml(headline)}</text>
   <text x="82" y="312" fill="#a7aca2" font-family="Arial, sans-serif" font-size="24">Current prices: ${escapeXml(priceLine(scan.currentPrices))}</text>
   ${rows.map((row, index) => renderRow(row, 380 + index * 66)).join("")}
-  <text x="82" y="586" fill="#a7aca2" font-family="Arial, sans-serif" font-size="21">Registry refreshed nightly · preference.example/smart-money/${escapeXml(scan.conditionId)}</text>
+  <text x="82" y="586" fill="#a7aca2" font-family="Arial, sans-serif" font-size="21">Registry refreshed nightly · pref/${escapeXml(scan.conditionId)}</text>
 </svg>`;
 }
 

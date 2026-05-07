@@ -1,6 +1,6 @@
-# Smart Money Specialists V1 Prototype
+# pref
 
-Dependency-light prototype for the Smart Money Specialists product plan.
+Prediction-market specialist signal dashboard for Preference.
 
 ## Run
 
@@ -25,7 +25,6 @@ npm run build
 - `src/services/registryStore.js` builds the computed specialist registry from upstream wallet history and market tags.
 - `src/services/marketScanner.js` powers default scans and custom Polymarket URL scans.
 - `src/services/shareRenderer.js` generates the share-card image markup.
-- `public/` contains the dashboard UI.
 - `api/` contains the Vercel Function entrypoints used in deployment.
 - `src/server.js` is only the local development server; Vercel should use `api/` directly.
 
@@ -35,9 +34,9 @@ The prototype stores registry/cache state in memory. On Vercel, that memory is t
 
 Deploy the repo root to Vercel. The project uses:
 
-- `public/` for the static frontend.
+- Next.js for the frontend.
 - `api/smart-money/*` for serverless API routes.
-- `vercel.json` for the build command, function runtime, and SPA fallback rewrite.
+- `vercel.json` for function settings.
 
 Recommended Vercel env vars:
 

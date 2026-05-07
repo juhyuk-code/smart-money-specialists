@@ -20,7 +20,7 @@ export function NavBar() {
         <Link href="/" className="flex items-center gap-2">
           <span className="w-2 h-2 bg-accent inline-block" aria-hidden="true" />
           <span className="text-[15px] uppercase tracking-[2px] font-mono text-ink">
-            SMARTMONI
+            PREF
           </span>
         </Link>
         <nav className="flex items-center gap-[2px]">

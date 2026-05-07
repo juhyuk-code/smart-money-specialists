@@ -10,7 +10,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "smartmoni - smart-money tracker for Polymarket",
+  title: "pref",
   description:
     "Track specialist positioning, public odds, and market volume on Polymarket.",
 };

@@ -2,7 +2,7 @@
 
 ## Current Goal
 
-Build and deploy the Smart Money Specialists prototype with real Preference MCP data, then put it on a real domain.
+Build and deploy pref with real Preference MCP data, then put it on a real domain.
 
 The app currently works locally with mock data. A real Preference MCP adapter has been added, but live mode needs a valid Preference auth token.
 

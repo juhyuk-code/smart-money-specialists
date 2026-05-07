@@ -63,7 +63,7 @@ const server = http.createServer(async (request, response) => {
 
 const port = Number(process.env.PORT ?? 3000);
 server.listen(port, () => {
-  console.log(`Smart Money Specialists running at http://localhost:${port}`);
+  console.log(`pref running at http://localhost:${port}`);
 });
 
 async function serveStatic(pathname, response) {
