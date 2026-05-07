@@ -99,6 +99,15 @@ async function loadMarkets() {
   list.innerHTML = `<div class="empty">Loading specialist signals</div>`;
   const response = await fetch("/api/smart-money/markets");
   const data = await response.json();
+  if (!response.ok && !Array.isArray(data.markets)) {
+    state.markets = [];
+    state.dataSource = data.dataSource ?? "preference";
+    state.effectiveDataSource = data.effectiveDataSource ?? "none";
+    state.upstreamStatus = data.upstreamStatus ?? { status: "unavailable", reason: data.error ?? "Market scan failed." };
+    state.cache = data.cache ?? null;
+    render();
+    return;
+  }
   state.markets = data.markets ?? [];
   state.dataSource = data.dataSource ?? null;
   state.effectiveDataSource = data.effectiveDataSource ?? data.dataSource ?? null;
@@ -132,15 +141,21 @@ function renderSystemStatus() {
 }
 
 function renderDataWarning() {
-  if (!state.upstreamStatus || state.effectiveDataSource !== "mock" || state.dataSource !== "preference") {
+  if (!state.upstreamStatus || state.upstreamStatus.status === "ok") {
     dataWarning.hidden = true;
     dataWarning.textContent = "";
     return;
   }
+  const label =
+    state.upstreamStatus.status === "stale"
+      ? "Live Preference data unavailable. Showing last successful real snapshot."
+      : state.effectiveDataSource === "mock"
+        ? "Live Preference data unavailable. Showing demo data."
+        : "Live Preference data unavailable.";
   dataWarning.hidden = false;
   dataWarning.innerHTML = `
-    <strong>Live Preference data unavailable.</strong>
-    <span>Showing demo data so the dashboard stays usable. ${escapeHtml(state.upstreamStatus.reason ?? "")}</span>
+    <strong>${escapeHtml(label)}</strong>
+    <span>${escapeHtml(state.upstreamStatus.reason ?? "")}</span>
   `;
 }
 

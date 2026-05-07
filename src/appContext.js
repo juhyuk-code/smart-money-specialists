@@ -40,3 +40,8 @@ export function getRuntimeDebugInfo() {
     vercelGitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
   };
 }
+
+export function resetAppContextForTests() {
+  if (process.env.NODE_ENV === "production") return;
+  context = null;
+}

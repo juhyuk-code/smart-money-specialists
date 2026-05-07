@@ -3,10 +3,13 @@ import { getCachedValue, setCachedValue } from "../../src/cache.js";
 import { sendJson, SHORT_CACHE_HEADERS } from "../../src/http.js";
 
 const MARKETS_CACHE_TTL_MS = 5 * 60 * 1000;
+const LAST_GOOD_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_NAMESPACE = "smart-money-markets";
+const LAST_GOOD_NAMESPACE = "smart-money-last-good";
 
 export default async function handler(request, response) {
-  const cacheKey = "default";
+  const { dataSource } = getAppContext();
+  const cacheKey = dataSource;
   const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
   if (cached && request.query?.refresh !== "1") {
     return sendJson(
@@ -24,47 +27,66 @@ export default async function handler(request, response) {
   }
 
   try {
-    const { scanner, fallbackScanner, dataSource } = getAppContext();
+    const { scanner } = getAppContext();
     const result = await scanner.scanDefaultMarkets();
     if (dataSource === "preference" && result.markets.length === 0) {
-      const fallback = await fallbackScanner.scanDefaultMarkets();
-      const payload = {
-        dataSource,
-        effectiveDataSource: "mock",
-        upstreamStatus: {
-          status: "fallback",
-          reason: "Preference returned no markets. This often happens when MCP quota is exhausted.",
-        },
-        ...fallback,
-      };
-      return sendCachedPayload(response, cacheKey, payload);
+      return sendLastKnownOrUnavailable(response, "Preference returned no markets. This often happens when MCP quota is exhausted.");
     }
-    return sendCachedPayload(response, cacheKey, {
+    const payload = {
       dataSource,
       effectiveDataSource: dataSource,
       upstreamStatus: { status: "ok", reason: null },
       ...result,
-    });
+    };
+    if (dataSource === "preference") setCachedValue(LAST_GOOD_NAMESPACE, "preference", payload, LAST_GOOD_TTL_MS);
+    return sendCachedPayload(response, cacheKey, payload);
   } catch (error) {
     console.error(error);
-    try {
-      const { fallbackScanner, dataSource } = getAppContext();
-      const fallback = await fallbackScanner.scanDefaultMarkets();
-      const payload = {
-        dataSource,
-        effectiveDataSource: "mock",
-        upstreamStatus: {
-          status: "fallback",
-          reason: error?.message ?? "Preference scan failed.",
-        },
-        ...fallback,
-      };
-      return sendCachedPayload(response, cacheKey, payload);
-    } catch (fallbackError) {
-      console.error(fallbackError);
-      return sendJson(response, { error: "Failed to scan markets" }, 500);
-    }
+    if (dataSource === "preference") return sendLastKnownOrUnavailable(response, error?.message ?? "Preference scan failed.");
+    return sendJson(response, { error: "Failed to scan markets" }, 500);
   }
+}
+
+function sendLastKnownOrUnavailable(response, reason) {
+  const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, "preference");
+  if (lastGood) {
+    return sendJson(
+      response,
+      {
+        ...lastGood.value,
+        upstreamStatus: {
+          status: "stale",
+          reason,
+          lastGoodAt: lastGood.cachedAt,
+        },
+        cache: {
+          status: "last-good",
+          cachedAt: lastGood.cachedAt,
+        },
+      },
+      200,
+      SHORT_CACHE_HEADERS,
+    );
+  }
+
+  return sendJson(
+    response,
+    {
+      dataSource: "preference",
+      effectiveDataSource: "none",
+      upstreamStatus: {
+        status: "unavailable",
+        reason,
+      },
+      registryRefreshedAt: null,
+      markets: [],
+      cache: {
+        status: "empty",
+      },
+    },
+    503,
+    SHORT_CACHE_HEADERS,
+  );
 }
 
 function sendCachedPayload(response, cacheKey, payload) {
