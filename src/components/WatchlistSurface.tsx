@@ -116,7 +116,7 @@ function WatchSection({
         </article>
       )) : (
         <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">
-          pick items to follow
+          no saved signals
         </div>
       )}
     </section>
@@ -128,13 +128,10 @@ function EmptyWatchlist() {
     <section className="surface-card rounded-[3px] border-dashed p-4 sm:p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="surface-card grid content-center gap-4 rounded-[3px] bg-paper p-5">
-          <Eyebrow>{"// START HERE"}</Eyebrow>
+          <Eyebrow>{"// WATCHLIST"}</Eyebrow>
           <h2 className="font-mono text-[20px] uppercase tracking-[1px] text-ink">
-            BUILD YOUR BOARD
+            NO SAVED SIGNALS
           </h2>
-          <p className="max-w-[620px] font-mono text-[12px] leading-relaxed text-ink-2">
-            Follow markets and wallets you care about. They stay here on this device so you can get back to them fast.
-          </p>
           <div>
             <Link
               href="/"
