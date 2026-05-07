@@ -258,3 +258,58 @@ test("preference adapter maps KOL wallets and closed PnL payloads", async () => 
     pnlErrors: [],
   });
 });
+
+test("preference adapter falls back to current top holders when known KOL list is empty", async () => {
+  const api = new PreferenceMcpApi({
+    invokeCapability: async (capabilityId) => {
+      if (capabilityId === "wsi__list_known_kols") return { rows: [] };
+      if (capabilityId === "pmmd__list_trending") {
+        return {
+          markets: [
+            {
+              slug: "fed-cut-rates-2026",
+              question: "Will the Fed cut rates in 2026?",
+              volume24hr: 1000,
+            },
+          ],
+        };
+      }
+      if (capabilityId === "pmdat__get_market") {
+        return {
+          markets: [
+            {
+              slug: "fed-cut-rates-2026",
+              question: "Will the Fed cut rates in 2026?",
+              conditionId: "0xcondition",
+              outcomes: ["Yes", "No"],
+              outcomePrices: [0.42, 0.58],
+              volume24hr: 1000,
+            },
+          ],
+        };
+      }
+      if (capabilityId === "wsi__get_market_kol_holders") {
+        return {
+          holders_by_outcome: {
+            Yes: [
+              {
+                address_normalized: "0xabc0000000000000000000000000000000000001",
+                size: "100",
+              },
+            ],
+          },
+        };
+      }
+      throw new Error(`Unexpected capability ${capabilityId}`);
+    },
+  });
+
+  const { wallets } = await api.listKnownWallets();
+  assert.deepEqual(wallets, {
+    "0xabc0000000000000000000000000000000000001": {
+      knownHandle: null,
+      candidateSources: ["current_top_holder"],
+    },
+  });
+  assert.equal(api.getDiagnostics().fallbackCandidateWallets, 1);
+});

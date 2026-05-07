@@ -65,9 +65,47 @@ export class PreferenceMcpApi {
       };
     }
 
+    if (Object.keys(wallets).length === 0) {
+      const fallbackWallets = await this.listCurrentHolderWalletCandidates();
+      Object.assign(wallets, fallbackWallets);
+    }
+
     this.diagnostics.normalizedWallets = Object.keys(wallets).length;
     this.walletCache = { wallets };
     return this.walletCache;
+  }
+
+  async listCurrentHolderWalletCandidates() {
+    const wallets = {};
+    const { markets } = await this.listTrendingMarkets();
+    const selectedMarkets = markets.slice(0, Math.min(markets.length, 25));
+    this.diagnostics.fallbackCandidateMarketsRequested = selectedMarkets.length;
+
+    await Promise.all(
+      selectedMarkets.map(async (market) => {
+        if (!market.conditionId) return;
+        try {
+          const { holders } = await this.listTopHolders(market.conditionId);
+          for (const holder of holders) {
+            wallets[holder.wallet] = {
+              knownHandle: null,
+              candidateSources: ["current_top_holder"],
+            };
+          }
+        } catch (error) {
+          if (!this.diagnostics.fallbackCandidateErrors) this.diagnostics.fallbackCandidateErrors = [];
+          if (this.diagnostics.fallbackCandidateErrors.length < 8) {
+            this.diagnostics.fallbackCandidateErrors.push({
+              conditionId: market.conditionId,
+              message: error?.message ?? String(error),
+            });
+          }
+        }
+      }),
+    );
+
+    this.diagnostics.fallbackCandidateWallets = Object.keys(wallets).length;
+    return wallets;
   }
 
   async listClosedPositions() {
