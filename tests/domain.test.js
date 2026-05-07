@@ -339,3 +339,25 @@ test("preference adapter can probe realized PnL payload shape", async () => {
   assert.equal(probe.firstRowSample.account, "0xabc0...0001");
   assert.deepEqual(probe.payloadShape.keys, ["rows"]);
 });
+
+test("preference adapter can probe trending market payload shape", async () => {
+  const api = new PreferenceMcpApi({
+    invokeCapability: async (capabilityId, args) => {
+      assert.equal(capabilityId, "pmmd__list_trending");
+      assert.equal(args.limit, 5);
+      return {
+        markets: [
+          {
+            slug: "will-bitcoin-hit-150k-by-june-30-2026",
+            question: "Will Bitcoin hit $150k by June 30, 2026?",
+          },
+        ],
+      };
+    },
+  });
+
+  const probe = await api.probeTrendingMarkets();
+  assert.equal(probe.parsedRowCount, 1);
+  assert.deepEqual(probe.payloadShape.keys, ["markets"]);
+  assert.equal(probe.firstRowSample.slug, "will-bitcoin-hit-150k-by-june-30-2026");
+});

@@ -230,6 +230,25 @@ export class PreferenceMcpApi {
       firstRowSample: redactSample(rows[0]),
     };
   }
+
+  async probeTrendingMarkets() {
+    const payload = await this.invokeCapability(CAPABILITIES.listTrending, {
+      limit: 5,
+      active: true,
+      closed: false,
+      order: "volume24hr",
+      ascending: false,
+    });
+    const rows = arrayFrom(payload, ["markets", "results", "data"]);
+    return {
+      capability: CAPABILITIES.listTrending,
+      argumentKeys: ["limit", "active", "closed", "order", "ascending"],
+      payloadShape: describeValue(payload),
+      parsedRowCount: rows.length,
+      firstRowShape: describeValue(rows[0]),
+      firstRowSample: redactSample(rows[0]),
+    };
+  }
 }
 
 export class PreferenceMcpHttpClient {
