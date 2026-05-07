@@ -261,16 +261,15 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
                   {wallet.activeMarkets} markets · {formatCurrency(wallet.totalCurrentSize)}
                 </div>
               </div>
-              <Pill>detail</Pill>
+              <SkeletonLine width="44px" />
             </Link>
           )) : wallets.length > 0 ? (
             <div className="px-4 py-10 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">
               No wallets matched this category.
             </div>
           ) : WALLET_ROWS.map((_, index) => (
-            <Link
+            <div
               key={index}
-              href={`/wallets/wallet-${index + 1}`}
               className="row-hover grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0"
             >
               <span className="h-6 w-6 border border-ink-3" />
@@ -279,7 +278,7 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
                 <SkeletonLine width="110px" />
               </div>
               <Pill>detail</Pill>
-            </Link>
+            </div>
           ))}
         </section>
       </main>
@@ -396,8 +395,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
 
 function LeaderSkeletonRow({ index }: { index: number }) {
   return (
-    <Link
-      href={`/wallets/wallet-${index + 1}`}
+    <div
       className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
       style={{ gridTemplateColumns: "42px 44px 1fr 128px 84px 100px 160px 86px" }}
     >
@@ -408,10 +406,8 @@ function LeaderSkeletonRow({ index }: { index: number }) {
       <SkeletonLine width="42%" />
       <SkeletonLine width="60%" />
       <SparkLine up={index < 5} width={120} />
-      <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
-        view
-      </span>
-    </Link>
+      <SkeletonLine width="42px" />
+    </div>
   );
 }
 
