@@ -63,6 +63,13 @@ export function buildWalletDetail(markets, walletId) {
   };
 }
 
+export function buildMarketDetail(markets, marketId) {
+  const normalized = decodeURIComponent(marketId).toLowerCase();
+  return markets.find((market) => {
+    return market.conditionId?.toLowerCase() === normalized || market.marketSlug?.toLowerCase() === normalized;
+  }) ?? null;
+}
+
 export function buildFeed(markets) {
   return markets
     .flatMap((market) =>

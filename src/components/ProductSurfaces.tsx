@@ -13,6 +13,7 @@ import {
   formatCurrency,
   formatEntry,
   formatPercent,
+  marketDetailPath,
   relativeTime,
   type FeedEvent,
   type Leader,
@@ -154,7 +155,7 @@ export function FeedSurface() {
                   <p className="truncate font-mono text-[14px] text-ink">{item.market.question}</p>
                 </div>
                 <Link
-                  href="/markets"
+                  href={marketDetailPath(item.market)}
                   className="hidden self-start border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 sm:block"
                 >
                   view

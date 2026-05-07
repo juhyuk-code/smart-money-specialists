@@ -185,6 +185,14 @@ export async function fetchWalletDetail(wallet: string): Promise<WalletDetail | 
   return data.wallet ?? null;
 }
 
+export async function fetchMarketDetail(marketId: string): Promise<SmartMoneyMarket | null> {
+  const response = await fetch(`/api/smart-money/markets/${encodeURIComponent(marketId)}`, {
+    headers: { accept: "application/json" },
+  });
+  const data = await response.json();
+  return data.market ?? null;
+}
+
 export function specialistCount(market: SmartMoneyMarket) {
   return market.outcomes.reduce((sum, outcome) => sum + outcome.specialistCount, 0);
 }
@@ -228,4 +236,8 @@ export function relativeTime(value: string | null | undefined) {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+export function marketDetailPath(market: Pick<SmartMoneyMarket, "marketSlug" | "conditionId">) {
+  return `/markets/${encodeURIComponent(market.marketSlug || market.conditionId)}`;
 }

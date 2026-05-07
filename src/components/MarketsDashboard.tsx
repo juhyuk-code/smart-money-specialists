@@ -1,6 +1,7 @@
 "use client";
 
 import clsx from "clsx";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Eyebrow, Frame, Pill, StatCard } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
@@ -10,6 +11,7 @@ import {
   formatEntry,
   formatPercent,
   leadingOutcome,
+  marketDetailPath,
   pricePercent,
   readSnapshot,
   relativeTime,
@@ -23,6 +25,7 @@ type SortMode = "volume" | "specialists" | "skew";
 type ScanState = "idle" | "scanning" | "settled";
 
 export function MarketsDashboard() {
+  const router = useRouter();
   const [markets, setMarkets] = useState<SmartMoneyMarket[]>([]);
   const [registryRefreshedAt, setRegistryRefreshedAt] = useState<string | null>(null);
   const [category, setCategory] = useState("all");
@@ -215,7 +218,7 @@ export function MarketsDashboard() {
                 key={market.conditionId}
                 market={market}
                 selected={selectedMarketId === market.conditionId}
-                onSelect={() => setSelectedMarketId(market.conditionId)}
+                onSelect={() => router.push(marketDetailPath(market))}
               />
             ))}
           </section>

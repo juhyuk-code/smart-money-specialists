@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFeed, buildLeaders, buildWalletDetail, buildWalletIndex } from "../src/services/internalSurfaces.js";
+import { buildFeed, buildLeaders, buildMarketDetail, buildWalletDetail, buildWalletIndex } from "../src/services/internalSurfaces.js";
 
 const markets = [
   {
@@ -110,4 +110,10 @@ test("buildFeed returns specialist market events newest first", () => {
   assert.equal(feed.length, 3);
   assert.equal(feed[0].market.marketSlug, "market-two");
   assert.equal(feed[0].outcome, "NO");
+});
+
+test("buildMarketDetail returns a market by slug or condition id", () => {
+  assert.equal(buildMarketDetail(markets, "market-one").conditionId, "condition-1");
+  assert.equal(buildMarketDetail(markets, "condition-2").marketSlug, "market-two");
+  assert.equal(buildMarketDetail(markets, "missing"), null);
 });
