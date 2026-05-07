@@ -10,6 +10,7 @@ const ITEMS = [
   { label: "FEED", href: "/feed" },
   { label: "MARKETS", href: "/markets" },
   { label: "WALLETS", href: "/wallets" },
+  { label: "WATCHLIST", href: "/watchlist" },
 ];
 
 export function NavBar() {

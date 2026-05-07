@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Eyebrow, Frame, Pill, StatCard } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
+import { FollowButton } from "@/components/FollowButton";
 import {
   fetchMarkets,
   formatCurrency,
@@ -279,15 +280,28 @@ function MarketCard({
               {market.question}
             </h2>
           </div>
-          <a
-            href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(event) => event.stopPropagation()}
-            className="shrink-0 border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-2 hover:border-accent hover:text-accent"
-          >
-            share
-          </a>
+          <div className="flex shrink-0 gap-2">
+            <FollowButton
+              compact
+              target={{
+                type: "market",
+                id: market.marketSlug || market.conditionId,
+                label: market.question,
+                href: marketDetailPath(market),
+                subtitle: market.headline,
+                tags: market.parentTags,
+              }}
+            />
+            <a
+              href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => event.stopPropagation()}
+              className="border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-2 hover:border-accent hover:text-accent"
+            >
+              share
+            </a>
+          </div>
         </div>
 
         <div className="grid gap-2">

@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Eyebrow, Frame, Pill, SparkLine, StatCard } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
+import { FollowButton } from "@/components/FollowButton";
 import {
   fetchMarketDetail,
   formatCurrency,
   formatEntry,
   formatPercent,
   leadingOutcome,
+  marketDetailPath,
   pricePercent,
   readSnapshot,
   relativeTime,
@@ -72,14 +74,26 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               {market.question}
             </h1>
           </div>
-          <a
-            href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
-          >
-            share
-          </a>
+          <div className="flex gap-2">
+            <FollowButton
+              target={{
+                type: "market",
+                id: market.marketSlug || market.conditionId,
+                label: market.question,
+                href: marketDetailPath(market),
+                subtitle: market.headline,
+                tags: market.parentTags,
+              }}
+            />
+            <a
+              href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
+            >
+              share
+            </a>
+          </div>
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">

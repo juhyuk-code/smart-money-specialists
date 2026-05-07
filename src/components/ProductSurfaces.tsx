@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Eyebrow, Frame, Pill, SparkLine, StatCard } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
+import { FollowButton } from "@/components/FollowButton";
 import {
   fetchFeed,
   fetchLeaders,
@@ -299,9 +300,16 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="border border-accent bg-[rgba(96,165,250,0.08)] px-3 py-2 font-mono text-[10px] uppercase tracking-[1px] text-accent">
-              follow
-            </button>
+            <FollowButton
+              target={{
+                type: "wallet",
+                id: detail?.wallet ?? wallet,
+                label: displayWallet,
+                href: `/wallets/${encodeURIComponent(detail?.wallet ?? wallet)}`,
+                subtitle: hasData ? `${detail?.activeMarkets ?? 0} markets · ${formatCurrency(detail?.totalCurrentSize)}` : "wallet",
+                tags: detail?.categories,
+              }}
+            />
             <button className="border border-ink-3 px-3 py-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-2">
               mirror
             </button>
