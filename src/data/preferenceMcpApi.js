@@ -1,14 +1,14 @@
 const CAPABILITIES = {
-  listTrending: "pmmd__list_trending",
-  getMarket: "pmdat__get_market",
-  listKnownKols: "wsi__list_known_kols",
-  marketKolHolders: "wsi__get_market_kol_holders",
-  realizedPnl: "pmsg__get_subgraph_realized_pnl",
+  listTrending: "polymarket.discovery.search_markets",
+  getMarket: "polymarket.discovery.search_markets",
+  listKnownKols: "wallet.scrape.list_known_kols",
+  marketKolHolders: "wallet.scrape.get_market_kol_holders",
+  realizedPnl: null,
 };
 
-const DEFAULT_KOL_LIMIT = 250;
-const DEFAULT_TRENDING_LIMIT = 50;
-const DEFAULT_HOLDER_LIMIT = 50;
+const DEFAULT_KOL_LIMIT = 100;
+const DEFAULT_TRENDING_LIMIT = 12;
+const DEFAULT_HOLDER_LIMIT = 20;
 const DEFAULT_CLOSED_POSITION_LIMIT = 250;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -110,6 +110,12 @@ export class PreferenceMcpApi {
 
   async listClosedPositions() {
     if (this.closedPositionsCache) return this.closedPositionsCache;
+    if (!CAPABILITIES.realizedPnl) {
+      this.closedPositionsCache = { positions: [] };
+      this.closedMarketTagsCache = { marketTags: {} };
+      return this.closedPositionsCache;
+    }
+
     const { wallets } = await this.listKnownWallets();
     const positions = [];
     const marketTags = {};
@@ -159,11 +165,13 @@ export class PreferenceMcpApi {
 
   async listTrendingMarkets() {
     const payload = await this.invokeCapability(CAPABILITIES.listTrending, {
+      query: "will",
       limit: this.trendingLimit,
       active: true,
       closed: false,
       order: "volume24hr",
       ascending: false,
+      fields: marketSearchFields(),
     });
     const trending = arrayFrom(payload, ["markets", "results", "data"]);
     const slugs = trending.map((market) => market.slug).filter(Boolean);
@@ -197,16 +205,36 @@ export class PreferenceMcpApi {
   async fetchMarketsBySlugs(slugs) {
     const missing = slugs.filter((slug) => !this.marketCache.has(slug));
     if (missing.length > 0) {
-      const payload = await this.invokeCapability(CAPABILITIES.getMarket, {
-        slugs: missing,
-        normalize_tokens: true,
-      });
-      for (const market of arrayFrom(payload, ["markets", "results", "data"])) {
-        const normalized = normalizeMarket(market);
-        if (normalized?.slug) this.marketCache.set(normalized.slug, normalized);
+      await Promise.all(missing.map(async (slug) => {
+        const payload = await this.invokeCapability(CAPABILITIES.getMarket, {
+          query: slug,
+          limit: 5,
+          active: true,
+          closed: false,
+          match_mode: "literal",
+          match_fields: {
+            question: false,
+            description: false,
+            slug: true,
+            outcomes: false,
+            category: false,
+            tags: false,
+          },
+          fields: marketSearchFields(),
+        });
+        for (const market of arrayFrom(payload, ["markets", "results", "data"])) {
+          const normalized = normalizeMarket(market);
+          if (normalized?.slug) this.marketCache.set(normalized.slug, normalized);
+        }
+        const single = normalizeMarket(payload.market);
+        if (single?.slug) this.marketCache.set(single.slug, single);
+      }));
+      for (const slug of missing) {
+        if (!this.marketCache.has(slug)) {
+          const normalized = normalizeMarket({ slug });
+          if (normalized?.slug) this.marketCache.set(normalized.slug, normalized);
+        }
       }
-      const single = normalizeMarket(payload.market);
-      if (single?.slug) this.marketCache.set(single.slug, single);
     }
     return slugs.map((slug) => this.marketCache.get(slug)).filter(Boolean);
   }
@@ -216,6 +244,17 @@ export class PreferenceMcpApi {
   }
 
   async probeRealizedPnl(wallet) {
+    if (!CAPABILITIES.realizedPnl) {
+      return {
+        capability: null,
+        argumentKeys: ["account", "limit"],
+        payloadShape: { type: "unavailable", sample: "No realized PnL tool is currently exposed by Preference MCP." },
+        parsedRowCount: 0,
+        firstRowShape: { type: "undefined", sample: null },
+        firstRowSample: null,
+      };
+    }
+
     const payload = await this.invokeCapability(CAPABILITIES.realizedPnl, {
       account: wallet,
       limit: 5,
@@ -233,6 +272,7 @@ export class PreferenceMcpApi {
 
   async probeTrendingMarkets() {
     const payload = await this.invokeCapability(CAPABILITIES.listTrending, {
+      query: "will",
       limit: 5,
       active: true,
       closed: false,
@@ -261,21 +301,18 @@ export class PreferenceMcpHttpClient {
   }
 
   async invokeCapability(capabilityId, args = {}) {
+    if (!capabilityId) throw new Error("Preference MCP capability is unavailable");
+
     const calls = [
+      {
+        mode: "direct_tool_call",
+        name: capabilityId,
+        args,
+      },
       {
         mode: "tool_ref_call_tool",
         name: "call_tool",
-        args: { tool_name: capabilityId, arguments: args },
-      },
-      {
-        mode: "tool_ref_call_tool_name",
-        name: "call_tool",
-        args: { name: capabilityId, arguments: args },
-      },
-      {
-        mode: "legacy_invoke_capability",
-        name: "invoke_capability",
-        args: { capability_id: capabilityId, arguments: args },
+        args: { tool_ref: capabilityId, arguments: args },
       },
     ];
 
@@ -342,12 +379,24 @@ function normalizeMarket(market) {
     if (outcome && typeof price === "number") currentPrices[String(outcome).toUpperCase()] = price;
   });
   return {
-    conditionId: market.conditionId ?? market.condition_id ?? null,
+    conditionId: market.conditionId ?? market.condition_id ?? market.conditionID ?? market.condition ?? null,
     slug: market.slug ?? null,
     question: market.question ?? market.title ?? "",
     rawTags: inferTags(market),
     currentPrices,
-    volume24h: toNumber(market.volume24hr ?? market.volume24h ?? market.volume_24h),
+    volume24h: toNumber(market.volume24hr ?? market.volume24h ?? market.volume_24h ?? market.volumeNum ?? market.volume),
+  };
+}
+
+function marketSearchFields() {
+  return {
+    question: true,
+    outcomes: true,
+    volume: true,
+    volume24hr: true,
+    category: true,
+    subcategory: true,
+    conditionId: true,
   };
 }
 

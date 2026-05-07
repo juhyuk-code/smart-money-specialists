@@ -131,7 +131,7 @@ test("keeps privacy-safe wallet labels", () => {
 test("preference adapter maps MCP market and holder payloads to app shapes", async () => {
   const api = new PreferenceMcpApi({
     invokeCapability: async (capabilityId, args) => {
-      if (capabilityId === "pmmd__list_trending") {
+      if (capabilityId === "polymarket.discovery.search_markets" && args.query === "will") {
         assert.equal(args.order, "volume24hr");
         return {
           markets: [
@@ -144,7 +144,7 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
           ],
         };
       }
-      if (capabilityId === "pmdat__get_market") {
+      if (capabilityId === "polymarket.discovery.search_markets") {
         return {
           markets: [
             {
@@ -159,7 +159,7 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
           ],
         };
       }
-      if (capabilityId === "wsi__get_market_kol_holders") {
+      if (capabilityId === "wallet.scrape.get_market_kol_holders") {
         assert.equal(args.condition_id, "0xa0f4c4924ea1a8b410b4ce821c2a9955fad21a1b19bdcfde90816732278b3dd5");
         return {
           holders_by_outcome: {
@@ -199,10 +199,10 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
   ]);
 });
 
-test("preference adapter maps KOL wallets and closed PnL payloads", async () => {
+test("preference adapter maps KOL wallets and handles unavailable closed PnL", async () => {
   const api = new PreferenceMcpApi({
-    invokeCapability: async (capabilityId) => {
-      if (capabilityId === "wsi__list_known_kols") {
+    invokeCapability: async (capabilityId, args) => {
+      if (capabilityId === "wallet.scrape.list_known_kols") {
         return {
           rows: [
             {
@@ -211,19 +211,6 @@ test("preference adapter maps KOL wallets and closed PnL payloads", async () => 
               is_known_kol: true,
               smart_wallet: true,
               kol_sources: ["repo_smart_wallet"],
-            },
-          ],
-        };
-      }
-      if (capabilityId === "pmsg__get_subgraph_realized_pnl") {
-        return {
-          rows: [
-            {
-              condition_id: "0xmarket",
-              title: "Will the Fed cut rates?",
-              realized_pnl: "900",
-              volume: "3000",
-              timestamp: Math.floor(Date.now() / 1000),
             },
           ],
         };
@@ -240,30 +227,29 @@ test("preference adapter maps KOL wallets and closed PnL payloads", async () => 
 
   const { positions } = await api.listClosedPositions();
   const { marketTags } = await api.listClosedMarketTags();
-  assert.equal(positions[0].wallet, "0xd235973291b2b75ff4070e9c0b01728c520b0f29");
-  assert.equal(positions[0].realizedPnl, 900);
-  assert.deepEqual(marketTags["0xmarket"], ["Macro"]);
+  assert.deepEqual(positions, []);
+  assert.deepEqual(marketTags, {});
   assert.deepEqual(api.getDiagnostics(), {
-    requestedKolLimit: 250,
-    requestedTrendingLimit: 50,
+    requestedKolLimit: 100,
+    requestedTrendingLimit: 12,
     requestedClosedPositionLimit: 250,
     knownWalletRows: 1,
     normalizedWallets: 1,
-    pnlWalletsRequested: 1,
-    pnlWalletsSucceeded: 1,
+    pnlWalletsRequested: 0,
+    pnlWalletsSucceeded: 0,
     pnlWalletsFailed: 0,
-    rawPnlRows: 1,
-    normalizedClosedPositions: 1,
-    taggedClosedMarkets: 1,
+    rawPnlRows: 0,
+    normalizedClosedPositions: 0,
+    taggedClosedMarkets: 0,
     pnlErrors: [],
   });
 });
 
 test("preference adapter falls back to current top holders when known KOL list is empty", async () => {
   const api = new PreferenceMcpApi({
-    invokeCapability: async (capabilityId) => {
-      if (capabilityId === "wsi__list_known_kols") return { rows: [] };
-      if (capabilityId === "pmmd__list_trending") {
+    invokeCapability: async (capabilityId, args) => {
+      if (capabilityId === "wallet.scrape.list_known_kols") return { rows: [] };
+      if (capabilityId === "polymarket.discovery.search_markets" && args.query === "will") {
         return {
           markets: [
             {
@@ -274,7 +260,7 @@ test("preference adapter falls back to current top holders when known KOL list i
           ],
         };
       }
-      if (capabilityId === "pmdat__get_market") {
+      if (capabilityId === "polymarket.discovery.search_markets") {
         return {
           markets: [
             {
@@ -288,7 +274,7 @@ test("preference adapter falls back to current top holders when known KOL list i
           ],
         };
       }
-      if (capabilityId === "wsi__get_market_kol_holders") {
+      if (capabilityId === "wallet.scrape.get_market_kol_holders") {
         return {
           holders_by_outcome: {
             Yes: [
@@ -315,35 +301,17 @@ test("preference adapter falls back to current top holders when known KOL list i
 });
 
 test("preference adapter can probe realized PnL payload shape", async () => {
-  const api = new PreferenceMcpApi({
-    invokeCapability: async (capabilityId, args) => {
-      assert.equal(capabilityId, "pmsg__get_subgraph_realized_pnl");
-      assert.deepEqual(args, {
-        account: "0xabc0000000000000000000000000000000000001",
-        limit: 5,
-      });
-      return {
-        rows: [
-          {
-            account: "0xabc0000000000000000000000000000000000001",
-            condition_id: "0xmarket",
-            realized_pnl: "25",
-          },
-        ],
-      };
-    },
-  });
+  const api = new PreferenceMcpApi({ invokeCapability: async () => ({ rows: [] }) });
 
   const probe = await api.probeRealizedPnl("0xabc0000000000000000000000000000000000001");
-  assert.equal(probe.parsedRowCount, 1);
-  assert.equal(probe.firstRowSample.account, "0xabc0...0001");
-  assert.deepEqual(probe.payloadShape.keys, ["rows"]);
+  assert.equal(probe.parsedRowCount, 0);
+  assert.equal(probe.payloadShape.type, "unavailable");
 });
 
 test("preference adapter can probe trending market payload shape", async () => {
   const api = new PreferenceMcpApi({
     invokeCapability: async (capabilityId, args) => {
-      assert.equal(capabilityId, "pmmd__list_trending");
+      assert.equal(capabilityId, "polymarket.discovery.search_markets");
       assert.equal(args.limit, 5);
       return {
         markets: [
