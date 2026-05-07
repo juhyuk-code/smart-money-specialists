@@ -85,7 +85,7 @@ function sendLastKnownOrUnavailable(response, reason) {
       },
     },
     503,
-    SHORT_CACHE_HEADERS,
+    { "cache-control": "no-store" },
   );
 }
 

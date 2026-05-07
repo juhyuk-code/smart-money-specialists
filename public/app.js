@@ -2,6 +2,7 @@ import { layoutWithLines, prepareWithSegments } from "https://esm.sh/@chenglou/p
 
 const PRETEXT_FONT = "20px Iowan Old Style";
 const PRETEXT_LINE_HEIGHT = 27;
+const SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
 
 const state = {
   markets: [],
@@ -9,10 +10,6 @@ const state = {
   sort: "volume",
   hideInsufficient: false,
   search: "",
-  upstreamStatus: null,
-  dataSource: null,
-  effectiveDataSource: null,
-  cache: null,
   preparedCorpus: null,
   corpusText: "",
   mouse: { x: 0, y: 0 },
@@ -24,11 +21,6 @@ const marketCount = document.querySelector("#marketCount");
 const signalCount = document.querySelector("#signalCount");
 const dominantSignal = document.querySelector("#dominantSignal");
 const coverageState = document.querySelector("#coverageState");
-const dataWarning = document.querySelector("#dataWarning");
-const requestedSource = document.querySelector("#requestedSource");
-const effectiveSource = document.querySelector("#effectiveSource");
-const upstreamState = document.querySelector("#upstreamState");
-const cacheState = document.querySelector("#cacheState");
 const signalCanvas = document.querySelector("#signalCanvas");
 const signalContext = signalCanvas.getContext("2d");
 const categoryFilter = document.querySelector("#categoryFilter");
@@ -96,67 +88,43 @@ customScanForm.addEventListener("submit", async (event) => {
 });
 
 async function loadMarkets() {
-  list.innerHTML = `<div class="empty">Loading specialist signals</div>`;
-  const response = await fetch("/api/smart-money/markets");
-  const data = await response.json();
-  if (!response.ok && !Array.isArray(data.markets)) {
-    state.markets = [];
-    state.dataSource = data.dataSource ?? "preference";
-    state.effectiveDataSource = data.effectiveDataSource ?? "none";
-    state.upstreamStatus = data.upstreamStatus ?? { status: "unavailable", reason: data.error ?? "Market scan failed." };
-    state.cache = data.cache ?? null;
+  restoreSnapshot();
+  if (state.markets.length === 0) list.innerHTML = `<div class="empty">Loading specialist signals</div>`;
+
+  try {
+    const response = await fetch("/api/smart-money/markets");
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.markets) || data.markets.length === 0) {
+      restoreSnapshot();
+      if (state.markets.length === 0) render();
+      return;
+    }
+
+    state.markets = data.markets;
+    prepareSignalCorpus(state.markets);
+    freshness.textContent = `Registry refreshed ${relativeTime(data.registryRefreshedAt)}`;
+    saveSnapshot({
+      markets: state.markets,
+      registryRefreshedAt: data.registryRefreshedAt,
+    });
     render();
-    return;
+  } catch {
+    restoreSnapshot();
+    if (state.markets.length === 0) render();
   }
-  state.markets = data.markets ?? [];
-  state.dataSource = data.dataSource ?? null;
-  state.effectiveDataSource = data.effectiveDataSource ?? data.dataSource ?? null;
-  state.upstreamStatus = data.upstreamStatus ?? null;
-  state.cache = data.cache ?? null;
-  prepareSignalCorpus(state.markets);
-  freshness.textContent = `Registry refreshed ${relativeTime(data.registryRefreshedAt)}`;
-  render();
 }
 
 function render() {
   const markets = sorted(filtered(state.markets));
-  renderDataWarning();
-  renderSystemStatus();
   renderSummary(markets);
   if (markets.length === 0) {
-    list.innerHTML = `<div class="empty">No markets match the current filters.</div>`;
+    list.innerHTML = `<div class="empty">Awaiting market snapshot.</div>`;
     return;
   }
   list.innerHTML = markets.map(renderMarket).join("");
   list.querySelectorAll(".market-summary").forEach((button) => {
     button.addEventListener("click", () => button.closest(".market").classList.toggle("open"));
   });
-}
-
-function renderSystemStatus() {
-  requestedSource.textContent = state.dataSource ?? "unknown";
-  effectiveSource.textContent = state.effectiveDataSource ?? "unknown";
-  upstreamState.textContent = state.upstreamStatus?.status ?? "ok";
-  cacheState.textContent = state.cache?.status === "hit" ? `hit ${relativeTime(state.cache.cachedAt)}` : state.cache?.status ?? "miss";
-}
-
-function renderDataWarning() {
-  if (!state.upstreamStatus || state.upstreamStatus.status === "ok") {
-    dataWarning.hidden = true;
-    dataWarning.textContent = "";
-    return;
-  }
-  const label =
-    state.upstreamStatus.status === "stale"
-      ? "Live Preference data unavailable. Showing last successful real snapshot."
-      : state.effectiveDataSource === "mock"
-        ? "Live Preference data unavailable. Showing demo data."
-        : "Live Preference data unavailable.";
-  dataWarning.hidden = false;
-  dataWarning.innerHTML = `
-    <strong>${escapeHtml(label)}</strong>
-    <span>${escapeHtml(state.upstreamStatus.reason ?? "")}</span>
-  `;
 }
 
 function filtered(markets) {
@@ -166,6 +134,28 @@ function filtered(markets) {
     if (state.search && !market.question.toLowerCase().includes(state.search)) return false;
     return true;
   });
+}
+
+function saveSnapshot(snapshot) {
+  try {
+    localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ ...snapshot, savedAt: new Date().toISOString() }));
+  } catch {
+    // Ignore storage failures; the current in-memory state is still usable.
+  }
+}
+
+function restoreSnapshot() {
+  try {
+    const snapshot = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) ?? "null");
+    if (!snapshot || !Array.isArray(snapshot.markets) || snapshot.markets.length === 0) return false;
+    state.markets = snapshot.markets;
+    prepareSignalCorpus(state.markets);
+    freshness.textContent = `Registry refreshed ${relativeTime(snapshot.registryRefreshedAt)}`;
+    render();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sorted(markets) {
