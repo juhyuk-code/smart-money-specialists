@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Surface — Obsidian (default). See ThemeProvider for Graphite / Midnight overrides. */
+  --paper: #0e1113;
+  --paper-2: #15191c;
+  --ink: #e6e8ea;
+  --ink-2: #8a9097;
+  --ink-3: #3a4046;
+  --ink-bg: #060708;
+  --ink-bg-soft: #1a1f23;
+
+  /* Signal accent — Blue is current default */
+  --accent: #60a5fa;
+
+  --canvas: #050608;
+}
+
+[data-tone="graphite"] {
+  --paper: #16181b;
+  --paper-2: #1d2024;
+  --ink: #e8eaec;
+  --ink-2: #909499;
+  --ink-3: #43484f;
+  --ink-bg-soft: #23272c;
+  --canvas: #0a0b0d;
+}
+
+[data-tone="midnight"] {
+  --paper: #0c1119;
+  --paper-2: #131a25;
+  --ink: #e3e8f0;
+  --ink-2: #8893a8;
+  --ink-3: #384258;
+  --ink-bg-soft: #1a2230;
+  --canvas: #05080d;
+}
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+}
+
+/* Grid texture applied to product frames */
+.frame-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}

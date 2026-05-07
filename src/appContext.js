@@ -42,6 +42,5 @@ export function getRuntimeDebugInfo() {
 }
 
 export function resetAppContextForTests() {
-  if (process.env.NODE_ENV === "production") return;
   context = null;
 }
