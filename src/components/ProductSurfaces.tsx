@@ -36,7 +36,8 @@ export function LeadersSurface() {
 
   const hasData = leaders.length > 0;
   const totalVolume = leaders.reduce((sum, leader) => sum + leader.totalCurrentSize, 0);
-  const avgRoi = leaders.length > 0 ? leaders.reduce((sum, leader) => sum + leader.roi, 0) / leaders.length : 0;
+  const roiLeaders = leaders.filter((leader) => typeof leader.roi === "number");
+  const avgRoi = roiLeaders.length > 0 ? roiLeaders.reduce((sum, leader) => sum + (leader.roi ?? 0), 0) / roiLeaders.length : null;
 
   return (
     <Frame>
@@ -89,7 +90,7 @@ export function LeadersSurface() {
                 <span className="font-mono text-[13px] text-accent">{formatCurrency(leader.realizedPnl)}</span>
                 <span className="font-mono text-[11px] text-ink-2">{formatPercent(leader.roi)}</span>
                 <span className="font-mono text-[11px] text-ink-2">{formatCurrency(leader.totalCurrentSize)}</span>
-                <SparkLine up={leader.realizedPnl >= 0} width={120} />
+                <SparkLine up={(leader.realizedPnl ?? leader.totalCurrentSize) >= 0} width={120} />
                 <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
                   view
                 </span>

@@ -28,7 +28,7 @@ function renderRow(row, y) {
   <rect x="82" y="${y - 36}" width="1036" height="54" rx="6" fill="#242424"/>
   <text x="108" y="${y}" fill="#f7f4ee" font-family="Arial, sans-serif" font-size="25" font-weight="700">${escapeXml(row.displayLabel)}</text>
   <text x="406" y="${y}" fill="#f7f4ee" font-family="Arial, sans-serif" font-size="24">${escapeXml(row.currentOutcome)} · avg ${formatEntry(row.averageEntry)}</text>
-  <text x="746" y="${y}" fill="#a7aca2" font-family="Arial, sans-serif" font-size="24">PnL $${Math.round(row.realizedPnl).toLocaleString()} · ROI ${Math.round(row.roi * 100)}%</text>`;
+  <text x="746" y="${y}" fill="#a7aca2" font-family="Arial, sans-serif" font-size="24">${performanceLine(row)}</text>`;
 }
 
 function priceLine(prices) {
@@ -39,6 +39,11 @@ function priceLine(prices) {
 
 function formatEntry(value) {
   return typeof value === "number" ? `${Math.round(value * 100)}c` : "unavailable";
+}
+
+function performanceLine(row) {
+  if (typeof row.realizedPnl !== "number" || typeof row.roi !== "number") return "Current holder";
+  return `PnL $${Math.round(row.realizedPnl).toLocaleString()} · ROI ${Math.round(row.roi * 100)}%`;
 }
 
 function formatDate(value) {

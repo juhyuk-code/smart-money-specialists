@@ -24,11 +24,14 @@ export async function readDefaultMarketSnapshot() {
 export function buildLeaders(markets) {
   const wallets = collectWallets(markets);
   return Array.from(wallets.values())
-    .sort((a, b) => b.realizedPnl - a.realizedPnl)
+    .sort((a, b) => ((b.realizedPnl ?? 0) - (a.realizedPnl ?? 0)) || (b.totalCurrentSize - a.totalCurrentSize))
     .map((wallet, index) => ({
       rank: index + 1,
       ...wallet,
-      roi: wallet.roiSamples > 0 ? wallet.roiTotal / wallet.roiSamples : 0,
+      realizedPnl: wallet.performanceSamples > 0 ? wallet.realizedPnl : null,
+      last90dPnl: wallet.performanceSamples > 0 ? wallet.last90dPnl : null,
+      closedMarkets: wallet.performanceSamples > 0 ? wallet.closedMarkets : null,
+      roi: wallet.roiSamples > 0 ? wallet.roiTotal / wallet.roiSamples : null,
       categories: Array.from(wallet.categories).sort(),
       markets: Array.from(wallet.markets.values()),
       outcomes: Array.from(wallet.outcomes).sort(),
@@ -119,9 +122,12 @@ function collectWallets(markets) {
         current.outcomes.add(specialist.currentOutcome);
         current.activeMarkets += 1;
         current.totalCurrentSize += specialist.currentSize ?? 0;
-        current.realizedPnl += specialist.realizedPnl ?? 0;
-        current.last90dPnl += specialist.last90dPnl ?? 0;
-        current.closedMarkets += specialist.closedMarkets ?? 0;
+        if (typeof specialist.realizedPnl === "number") {
+          current.realizedPnl += specialist.realizedPnl;
+          current.performanceSamples += 1;
+        }
+        if (typeof specialist.last90dPnl === "number") current.last90dPnl += specialist.last90dPnl;
+        if (typeof specialist.closedMarkets === "number") current.closedMarkets += specialist.closedMarkets;
         if (typeof specialist.roi === "number") {
           current.roiTotal += specialist.roi;
           current.roiSamples += 1;
@@ -159,6 +165,7 @@ function createWalletRecord(specialist) {
     realizedPnl: 0,
     last90dPnl: 0,
     closedMarkets: 0,
+    performanceSamples: 0,
     roiTotal: 0,
     roiSamples: 0,
     markets: new Map(),

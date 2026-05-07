@@ -6,10 +6,10 @@ export type Specialist = {
   currentOutcome: string;
   currentSize: number;
   averageEntry: number | null;
-  realizedPnl: number;
-  roi: number;
-  closedMarkets: number;
-  last90dPnl: number;
+  realizedPnl: number | null;
+  roi: number | null;
+  closedMarkets: number | null;
+  last90dPnl: number | null;
 };
 
 export type MarketOutcome = {
@@ -53,10 +53,10 @@ export type Leader = {
   categories: string[];
   activeMarkets: number;
   totalCurrentSize: number;
-  realizedPnl: number;
-  last90dPnl: number;
-  closedMarkets: number;
-  roi: number;
+  realizedPnl: number | null;
+  last90dPnl: number | null;
+  closedMarkets: number | null;
+  roi: number | null;
   markets: Array<{
     conditionId: string;
     marketSlug: string;
@@ -64,8 +64,8 @@ export type Leader = {
     outcome: string;
     currentSize: number;
     averageEntry: number | null;
-    realizedPnl: number;
-    roi: number;
+    realizedPnl: number | null;
+    roi: number | null;
     volume24h: number;
     parentTags: string[];
     currentPrices: Record<string, number>;
@@ -88,8 +88,8 @@ export type FeedEvent = {
   outcome: string;
   size: number;
   averageEntry: number | null;
-  realizedPnl: number;
-  roi: number;
+  realizedPnl: number | null;
+  roi: number | null;
   market: {
     conditionId: string;
     marketSlug: string;
@@ -206,8 +206,8 @@ export function pricePercent(price: number | undefined) {
   return Math.max(0, Math.min(100, price * 100));
 }
 
-export function formatCurrency(value: number | undefined) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "$0";
+export function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -216,8 +216,8 @@ export function formatCurrency(value: number | undefined) {
   }).format(value);
 }
 
-export function formatPercent(value: number | undefined) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "0%";
+export function formatPercent(value: number | null | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "--";
   return `${Math.round(value * 100)}%`;
 }
 

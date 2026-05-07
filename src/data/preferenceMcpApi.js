@@ -448,6 +448,8 @@ function normalizeHolder(row, fallbackOutcome) {
   if (!wallet) return null;
   return {
     wallet,
+    displayLabel: row.displayLabel ?? row.display_label ?? row.name ?? row.primary_kol_name ?? row.twitter_username ?? null,
+    knownHandle: bestHandle(row),
     outcome: String(row.outcome ?? row.side ?? fallbackOutcome ?? "UNKNOWN").toUpperCase(),
     size: toNumber(row.size ?? row.balance ?? row.shares ?? row.total_value_usd ?? row.value) ?? 0,
     averageEntry: toNumber(row.averageEntry ?? row.average_entry ?? row.avg_entry ?? row.avgPrice ?? row.avg_price),

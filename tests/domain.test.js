@@ -124,6 +124,36 @@ test("summarizes current holders into outcome specialist counts and headline", (
   assert.equal(buildHeadline(scan), "1 macro specialists YES @ avg 31c");
 });
 
+test("summarizes current holders without pretending historical PnL exists", () => {
+  const scan = summarizeMarketScan({
+    market: {
+      conditionId: "c2",
+      slug: "btc-market",
+      question: "Will Bitcoin hit a new high?",
+      rawTags: ["bitcoin"],
+      currentPrices: { YES: 0.42, NO: 0.58 },
+      volume24h: 420000,
+    },
+    registry: [],
+    holders: [
+      {
+        wallet: "0xabc0000000000000000000000000000000000001",
+        knownHandle: "@currentHolder",
+        outcome: "YES",
+        size: 1200,
+        averageEntry: 0.31,
+      },
+    ],
+    registryRefreshedAt: "2026-05-06T12:00:00.000Z",
+    holderFetchedAt: "2026-05-06T12:01:00.000Z",
+  });
+
+  assert.equal(scan.status, "current_holders");
+  assert.equal(scan.outcomes[0].topSpecialists[0].realizedPnl, null);
+  assert.equal(scan.outcomes[0].topSpecialists[0].displayLabel, "@currentHolder");
+  assert.equal(buildHeadline(scan), "1 tracked holders YES");
+});
+
 test("keeps privacy-safe wallet labels", () => {
   assert.equal(truncateWallet("0xabc0000000000000000000000000000000000001"), "0xabc0...0001");
 });
@@ -192,6 +222,8 @@ test("preference adapter maps MCP market and holder payloads to app shapes", asy
   assert.deepEqual(holders, [
     {
       wallet: "0xd235973291b2b75ff4070e9c0b01728c520b0f29",
+      displayLabel: null,
+      knownHandle: null,
       outcome: "YES",
       size: 1200,
       averageEntry: 0.02,

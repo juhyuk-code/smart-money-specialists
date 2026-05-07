@@ -196,8 +196,8 @@ function TopWalletsTable({
     currentOutcome: string;
     currentSize: number;
     averageEntry: number | null;
-    realizedPnl: number;
-    roi: number;
+    realizedPnl: number | null;
+    roi: number | null;
   }>;
 }) {
   return (

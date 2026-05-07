@@ -109,15 +109,14 @@ export function buildRegistryRecords({ wallets, positions, marketTags, threshold
 
 export function summarizeMarketScan({ market, registry, holders, holderFetchedAt, registryRefreshedAt }) {
   const parentTags = normalizeParentTags(market.rawTags);
-  if (parentTags.length === 0) {
-    return baseMarketResult(market, parentTags, "market_metadata_unavailable", registryRefreshedAt, holderFetchedAt);
-  }
+  const holderSignal = summarizeCurrentHolders({ market, parentTags, holders, holderFetchedAt, registryRefreshedAt });
+  if (parentTags.length === 0) return holderSignal;
 
   const relevantSpecialists = registry.filter(
     (record) => record.qualifies && parentTags.includes(record.category),
   );
   if (relevantSpecialists.length < 1) {
-    return baseMarketResult(market, parentTags, "insufficient_category_data", registryRefreshedAt, holderFetchedAt);
+    return holderSignal;
   }
 
   const specialistByWallet = new Map(relevantSpecialists.map((record) => [record.wallet.toLowerCase(), record]));
@@ -126,7 +125,7 @@ export function summarizeMarketScan({ market, registry, holders, holderFetchedAt
     .filter((row) => row.specialist);
 
   if (counted.length === 0) {
-    return baseMarketResult(market, parentTags, "no_specialists_currently_holding", registryRefreshedAt, holderFetchedAt);
+    return holderSignal;
   }
 
   const byOutcome = new Map();
@@ -178,6 +177,11 @@ export function summarizeMarketScan({ market, registry, holders, holderFetchedAt
 }
 
 export function buildHeadline(scan) {
+  if (scan.status === "current_holders") {
+    const dominant = scan.outcomes[0];
+    if (!dominant) return "Current holder signal";
+    return `${dominant.specialistCount} tracked holders ${dominant.outcome}`;
+  }
   if (scan.status === "insufficient_category_data") return `Insufficient ${scan.parentTags[0] ?? "category"} specialist data`;
   if (scan.status === "no_specialists_currently_holding") return "No tracked specialists currently holding";
   if (scan.status !== "ready" || scan.outcomes.length === 0) return "Specialist signal unavailable";
@@ -185,6 +189,61 @@ export function buildHeadline(scan) {
   const entry =
     dominant.weightedAverageEntry === null ? "avg entry unavailable" : `avg ${Math.round(dominant.weightedAverageEntry * 100)}c`;
   return `${dominant.specialistCount} ${scan.parentTags[0]} specialists ${dominant.outcome} @ ${entry}`;
+}
+
+function summarizeCurrentHolders({ market, parentTags, holders, holderFetchedAt, registryRefreshedAt }) {
+  if (!Array.isArray(holders) || holders.length === 0) {
+    const status = parentTags.length === 0 ? "market_metadata_unavailable" : "no_tracked_holders_currently_visible";
+    return baseMarketResult(market, parentTags, status, registryRefreshedAt, holderFetchedAt);
+  }
+
+  const byOutcome = new Map();
+  for (const holder of holders) {
+    const summary = byOutcome.get(holder.outcome) ?? {
+      outcome: holder.outcome,
+      specialistCount: 0,
+      totalCurrentSize: 0,
+      weightedEntryNumerator: 0,
+      weightedEntryWeight: 0,
+      topSpecialists: [],
+    };
+    summary.specialistCount += 1;
+    summary.totalCurrentSize += holder.size ?? 0;
+    if (typeof holder.averageEntry === "number" && typeof holder.size === "number") {
+      summary.weightedEntryNumerator += holder.averageEntry * holder.size;
+      summary.weightedEntryWeight += holder.size;
+    }
+    summary.topSpecialists.push({
+      wallet: holder.wallet,
+      displayLabel: holder.knownHandle ?? holder.displayLabel ?? truncateWallet(holder.wallet),
+      knownHandle: holder.knownHandle ?? null,
+      category: parentTags[0] ?? "current-holder",
+      currentOutcome: holder.outcome,
+      currentSize: holder.size ?? null,
+      averageEntry: holder.averageEntry ?? null,
+      realizedPnl: null,
+      roi: null,
+      closedMarkets: null,
+      last90dPnl: null,
+      signalType: "current_holder",
+    });
+    byOutcome.set(holder.outcome, summary);
+  }
+
+  const outcomes = [...byOutcome.values()].map((summary) => ({
+    outcome: summary.outcome,
+    specialistCount: summary.specialistCount,
+    totalCurrentSize: round(summary.totalCurrentSize),
+    weightedAverageEntry:
+      summary.weightedEntryWeight > 0 ? round(summary.weightedEntryNumerator / summary.weightedEntryWeight) : null,
+    averageEntryStatus: summary.weightedEntryWeight > 0 ? "available" : "unavailable",
+    topSpecialists: summary.topSpecialists.sort((a, b) => (b.currentSize ?? 0) - (a.currentSize ?? 0)).slice(0, 5),
+  }));
+
+  return {
+    ...baseMarketResult(market, parentTags, "current_holders", registryRefreshedAt, holderFetchedAt),
+    outcomes: outcomes.sort((a, b) => b.specialistCount - a.specialistCount),
+  };
 }
 
 function baseMarketResult(market, parentTags, status, registryRefreshedAt, marketDataRefreshedAt) {
