@@ -11,7 +11,10 @@ export function getAppContext() {
     const api = createDataApi();
     const registryStore = new RegistryStore(api);
     const scanner = new MarketScanner(api, registryStore);
-    context = { api, registryStore, scanner, dataSource };
+    const fallbackApi = new MockPreferenceApi();
+    const fallbackRegistryStore = new RegistryStore(fallbackApi);
+    const fallbackScanner = new MarketScanner(fallbackApi, fallbackRegistryStore);
+    context = { api, registryStore, scanner, dataSource, fallbackApi, fallbackRegistryStore, fallbackScanner };
   }
   return context;
 }

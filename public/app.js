@@ -9,6 +9,9 @@ const state = {
   sort: "volume",
   hideInsufficient: false,
   search: "",
+  upstreamStatus: null,
+  dataSource: null,
+  effectiveDataSource: null,
   preparedCorpus: null,
   corpusText: "",
   mouse: { x: 0, y: 0 },
@@ -20,6 +23,7 @@ const marketCount = document.querySelector("#marketCount");
 const signalCount = document.querySelector("#signalCount");
 const dominantSignal = document.querySelector("#dominantSignal");
 const coverageState = document.querySelector("#coverageState");
+const dataWarning = document.querySelector("#dataWarning");
 const signalCanvas = document.querySelector("#signalCanvas");
 const signalContext = signalCanvas.getContext("2d");
 const categoryFilter = document.querySelector("#categoryFilter");
@@ -90,7 +94,10 @@ async function loadMarkets() {
   list.innerHTML = `<div class="empty">Loading specialist signals</div>`;
   const response = await fetch("/api/smart-money/markets");
   const data = await response.json();
-  state.markets = data.markets;
+  state.markets = data.markets ?? [];
+  state.dataSource = data.dataSource ?? null;
+  state.effectiveDataSource = data.effectiveDataSource ?? data.dataSource ?? null;
+  state.upstreamStatus = data.upstreamStatus ?? null;
   prepareSignalCorpus(state.markets);
   freshness.textContent = `Registry refreshed ${relativeTime(data.registryRefreshedAt)}`;
   render();
@@ -98,6 +105,7 @@ async function loadMarkets() {
 
 function render() {
   const markets = sorted(filtered(state.markets));
+  renderDataWarning();
   renderSummary(markets);
   if (markets.length === 0) {
     list.innerHTML = `<div class="empty">No markets match the current filters.</div>`;
@@ -107,6 +115,19 @@ function render() {
   list.querySelectorAll(".market-summary").forEach((button) => {
     button.addEventListener("click", () => button.closest(".market").classList.toggle("open"));
   });
+}
+
+function renderDataWarning() {
+  if (!state.upstreamStatus || state.effectiveDataSource !== "mock" || state.dataSource !== "preference") {
+    dataWarning.hidden = true;
+    dataWarning.textContent = "";
+    return;
+  }
+  dataWarning.hidden = false;
+  dataWarning.innerHTML = `
+    <strong>Live Preference data unavailable.</strong>
+    <span>Showing demo data so the dashboard stays usable. ${escapeHtml(state.upstreamStatus.reason ?? "")}</span>
+  `;
 }
 
 function filtered(markets) {
