@@ -1,5 +1,5 @@
-import { LeadersSurface } from "@/components/ProductSurfaces";
+import { MarketsDashboard } from "@/components/MarketsDashboard";
 
 export default function HomePage() {
-  return <LeadersSurface />;
+  return <MarketsDashboard />;
 }

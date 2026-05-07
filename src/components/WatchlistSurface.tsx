@@ -44,10 +44,10 @@ export function WatchlistSurface() {
             </h1>
           </div>
           <Link
-            href="/markets"
+            href="/"
             className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
           >
-            browse markets
+            browse overview
           </Link>
         </section>
 
@@ -137,10 +137,10 @@ function EmptyWatchlist() {
           </p>
           <div>
             <Link
-              href="/markets"
+              href="/"
               className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
             >
-              browse markets
+              browse overview
             </Link>
           </div>
         </div>

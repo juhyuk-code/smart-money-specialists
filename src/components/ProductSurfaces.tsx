@@ -114,7 +114,7 @@ export function FeedSurface() {
   return (
     <Frame>
       <NavBar />
-      <main className="grid min-h-[calc(100vh-51px)] lg:grid-cols-[1fr_320px]">
+      <main className="grid min-h-[100dvh] lg:grid-cols-[1fr_320px]">
         <section className="border-r border-ink-3">
           <header className="flex flex-col gap-4 border-b border-ink-3 bg-paper-2 px-4 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-[6px]">
@@ -210,28 +210,45 @@ export function FeedSurface() {
   );
 }
 
-export function WalletsSurface() {
+export function WalletsSurface({ category = "all" }: { category?: string }) {
   const [wallets, setWallets] = useState<WalletRow[]>([]);
 
   useEffect(() => {
     fetchWallets().then(setWallets).catch(() => setWallets([]));
   }, []);
 
-  const hasData = wallets.length > 0;
+  const normalizedCategory = category.toLowerCase();
+  const filteredWallets =
+    normalizedCategory === "all"
+      ? wallets
+      : wallets.filter((wallet) =>
+          wallet.categories.some((item) => item.toLowerCase() === normalizedCategory),
+        );
+  const categoryLabel = normalizedCategory === "all" ? "all" : normalizedCategory;
+  const hasData = filteredWallets.length > 0;
 
   return (
     <Frame>
       <NavBar />
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
-        <section className="mb-5 flex flex-col gap-[6px]">
+        <section className="mb-5 flex flex-col gap-4 border-b border-dashed border-ink-3 pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-col gap-[6px]">
           <Eyebrow>{"// WALLETS ▸ INDEX"}</Eyebrow>
           <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-            HOLDER WALLETS
+            {categoryLabel === "all" ? "HOLDER WALLETS" : `${categoryLabel} wallets`}
           </h1>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {["all", "politics", "sports", "crypto", "macro", "weather", "sci-tech"].map((item) => (
+              <Link key={item} href={item === "all" ? "/wallets" : `/wallets?category=${item}`}>
+                <Pill tone={categoryLabel === item ? "accent" : "ink"}>{item}</Pill>
+              </Link>
+            ))}
+          </div>
         </section>
 
         <section className="overflow-hidden border border-ink-3 bg-paper-2">
-          {hasData ? wallets.map((wallet) => (
+          {hasData ? filteredWallets.map((wallet) => (
             <Link
               key={wallet.wallet}
               href={`/wallets/${encodeURIComponent(wallet.wallet)}`}
@@ -246,7 +263,11 @@ export function WalletsSurface() {
               </div>
               <Pill>detail</Pill>
             </Link>
-          )) : WALLET_ROWS.map((_, index) => (
+          )) : wallets.length > 0 ? (
+            <div className="px-4 py-10 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">
+              No wallets matched this category.
+            </div>
+          ) : WALLET_ROWS.map((_, index) => (
             <Link
               key={index}
               href={`/wallets/wallet-${index + 1}`}
@@ -282,7 +303,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
       <NavBar />
       <main className="grid gap-6 px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <nav className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-          <Link href="/" className="hover:text-ink-2">holders</Link>
+          <Link href="/wallets" className="hover:text-ink-2">wallets</Link>
           <span className="px-1">/</span>
           <span className="text-ink-2">{displayWallet}</span>
         </nav>

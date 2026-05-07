@@ -166,7 +166,7 @@ export function Frame({
     <div
       {...rest}
       className={clsx(
-        "frame-grid w-full min-h-screen bg-paper text-ink font-mono",
+        "frame-grid w-full min-h-[100dvh] bg-paper text-ink font-mono lg:grid lg:grid-cols-[292px_minmax(0,1fr)]",
         rest.className,
       )}
     >

@@ -278,7 +278,7 @@ test("preference adapter maps KOL wallets and handles unavailable closed PnL", a
   assert.deepEqual(marketTags, {});
   assert.deepEqual(api.getDiagnostics(), {
     requestedKolLimit: 100,
-    requestedTrendingLimit: 12,
+    requestedTrendingLimit: 40,
     requestedClosedPositionLimit: 250,
     knownWalletRows: 1,
     normalizedWallets: 1,

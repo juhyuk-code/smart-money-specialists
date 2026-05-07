@@ -55,7 +55,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
       <NavBar />
       <main className="grid gap-5 px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <nav className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-          <Link href="/markets" className="hover:text-ink-2">markets</Link>
+          <Link href="/" className="hover:text-ink-2">overview</Link>
           <span className="px-1">/</span>
           <span className="text-ink-2">{market.marketSlug}</span>
         </nav>
@@ -246,7 +246,7 @@ function EmptyMarketDetail({ marketId }: { marketId: string }) {
       <NavBar />
       <main className="grid gap-5 px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <nav className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-          <Link href="/markets" className="hover:text-ink-2">markets</Link>
+          <Link href="/" className="hover:text-ink-2">overview</Link>
           <span className="px-1">/</span>
           <span className="text-ink-2">{marketId}</span>
         </nav>

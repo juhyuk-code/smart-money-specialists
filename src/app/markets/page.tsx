@@ -1,5 +1,5 @@
-import { MarketsDashboard } from "@/components/MarketsDashboard";
+import { redirect } from "next/navigation";
 
 export default function MarketsPage() {
-  return <MarketsDashboard />;
+  redirect("/");
 }
