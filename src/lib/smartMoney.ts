@@ -45,6 +45,62 @@ export type Snapshot = MarketsPayload & {
   savedAt: string;
 };
 
+export type Leader = {
+  rank: number;
+  wallet: string;
+  displayLabel: string;
+  knownHandle: string | null;
+  categories: string[];
+  activeMarkets: number;
+  totalCurrentSize: number;
+  realizedPnl: number;
+  last90dPnl: number;
+  closedMarkets: number;
+  roi: number;
+  markets: Array<{
+    conditionId: string;
+    marketSlug: string;
+    question: string;
+    outcome: string;
+    currentSize: number;
+    averageEntry: number | null;
+    realizedPnl: number;
+    roi: number;
+    volume24h: number;
+    parentTags: string[];
+    currentPrices: Record<string, number>;
+  }>;
+  outcomes: string[];
+};
+
+export type WalletRow = Omit<Leader, "markets" | "outcomes" | "closedMarkets">;
+export type WalletDetail = Leader & {
+  positions: Leader["markets"];
+};
+
+export type FeedEvent = {
+  id: string;
+  time: string | null;
+  wallet: string;
+  displayLabel: string;
+  knownHandle: string | null;
+  action: string;
+  outcome: string;
+  size: number;
+  averageEntry: number | null;
+  realizedPnl: number;
+  roi: number;
+  market: {
+    conditionId: string;
+    marketSlug: string;
+    question: string;
+    currentPrices: Record<string, number>;
+    parentTags: string[];
+    volume24h: number;
+  };
+  outcomeSpecialistCount: number;
+};
+
 export const SNAPSHOT_KEY = "pref:last-market-snapshot";
 const LEGACY_SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
 
@@ -101,6 +157,32 @@ export async function scanCustomMarket(url: string): Promise<MarketsPayload | nu
     registryRefreshedAt: data.registryRefreshedAt ?? data.markets[0]?.registryRefreshedAt ?? null,
     markets: data.markets,
   };
+}
+
+export async function fetchLeaders(): Promise<Leader[]> {
+  const response = await fetch("/api/smart-money/leaders", { headers: { accept: "application/json" } });
+  const data = await response.json();
+  return Array.isArray(data.leaders) ? data.leaders : [];
+}
+
+export async function fetchFeed(): Promise<FeedEvent[]> {
+  const response = await fetch("/api/smart-money/feed", { headers: { accept: "application/json" } });
+  const data = await response.json();
+  return Array.isArray(data.feed) ? data.feed : [];
+}
+
+export async function fetchWallets(): Promise<WalletRow[]> {
+  const response = await fetch("/api/smart-money/wallets", { headers: { accept: "application/json" } });
+  const data = await response.json();
+  return Array.isArray(data.wallets) ? data.wallets : [];
+}
+
+export async function fetchWalletDetail(wallet: string): Promise<WalletDetail | null> {
+  const response = await fetch(`/api/smart-money/wallets/${encodeURIComponent(wallet)}`, {
+    headers: { accept: "application/json" },
+  });
+  const data = await response.json();
+  return data.wallet ?? null;
 }
 
 export function specialistCount(market: SmartMoneyMarket) {

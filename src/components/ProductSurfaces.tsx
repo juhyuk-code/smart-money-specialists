@@ -1,6 +1,24 @@
+"use client";
+
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { Eyebrow, Frame, Pill, SparkLine, StatCard } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
+import {
+  fetchFeed,
+  fetchLeaders,
+  fetchWalletDetail,
+  fetchWallets,
+  formatCurrency,
+  formatEntry,
+  formatPercent,
+  relativeTime,
+  type FeedEvent,
+  type Leader,
+  type WalletDetail,
+  type WalletRow,
+} from "@/lib/smartMoney";
 
 const LEADER_ROWS = Array.from({ length: 8 });
 const FEED_ROWS = Array.from({ length: 7 });
@@ -8,6 +26,16 @@ const WALLET_ROWS = Array.from({ length: 6 });
 const POSITION_ROWS = Array.from({ length: 5 });
 
 export function LeadersSurface() {
+  const [leaders, setLeaders] = useState<Leader[]>([]);
+
+  useEffect(() => {
+    fetchLeaders().then(setLeaders).catch(() => setLeaders([]));
+  }, []);
+
+  const hasData = leaders.length > 0;
+  const totalVolume = leaders.reduce((sum, leader) => sum + leader.totalCurrentSize, 0);
+  const avgRoi = leaders.length > 0 ? leaders.reduce((sum, leader) => sum + leader.roi, 0) / leaders.length : 0;
+
   return (
     <Frame>
       <NavBar />
@@ -28,10 +56,10 @@ export function LeadersSurface() {
         </section>
 
         <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard label="tracked wallets" value="--" />
-          <StatCard label="avg roi" value="--" highlight />
-          <StatCard label="volume / 24h" value="--" highlight />
-          <StatCard label="consensus market" value="--" />
+          <StatCard label="tracked wallets" value={hasData ? String(leaders.length) : "--"} />
+          <StatCard label="avg roi" value={hasData ? formatPercent(avgRoi) : "--"} highlight />
+          <StatCard label="current size" value={hasData ? formatCurrency(totalVolume) : "--"} highlight />
+          <StatCard label="top wallet" value={hasData ? leaders[0].displayLabel : "--"} />
         </section>
 
         <section className="overflow-x-auto border border-ink-3 bg-paper-2">
@@ -46,25 +74,25 @@ export function LeadersSurface() {
               <span>trend</span>
               <span />
             </TableHeader>
-            {LEADER_ROWS.map((_, index) => (
+            {hasData ? leaders.map((leader, index) => (
               <Link
-                key={index}
-                href={`/wallets/wallet-${index + 1}`}
+                key={leader.wallet}
+                href={`/wallets/${encodeURIComponent(leader.wallet)}`}
                 className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
                 style={{ gridTemplateColumns: "42px 44px 1fr 128px 84px 100px 160px 86px" }}
               >
-                <span className="font-mono text-[12px] text-ink-3">{String(index + 1).padStart(2, "0")}</span>
+                <span className="font-mono text-[12px] text-ink-3">{String(leader.rank).padStart(2, "0")}</span>
                 <span className="h-6 w-6 border border-ink-3" />
-                <SkeletonLine width={index % 2 === 0 ? "70%" : "56%"} />
-                <SkeletonLine width="76%" accent={index < 3} />
-                <SkeletonLine width="42%" />
-                <SkeletonLine width="60%" />
-                <SparkLine up={index < 5} width={120} />
+                <span className="truncate font-mono text-[12px] text-ink">{leader.displayLabel}</span>
+                <span className="font-mono text-[13px] text-accent">{formatCurrency(leader.realizedPnl)}</span>
+                <span className="font-mono text-[11px] text-ink-2">{formatPercent(leader.roi)}</span>
+                <span className="font-mono text-[11px] text-ink-2">{formatCurrency(leader.totalCurrentSize)}</span>
+                <SparkLine up={leader.realizedPnl >= 0} width={120} />
                 <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
                   view
                 </span>
               </Link>
-            ))}
+            )) : LEADER_ROWS.map((_, index) => <LeaderSkeletonRow key={index} index={index} />)}
           </div>
         </section>
       </main>
@@ -73,6 +101,15 @@ export function LeadersSurface() {
 }
 
 export function FeedSurface() {
+  const [feed, setFeed] = useState<FeedEvent[]>([]);
+
+  useEffect(() => {
+    fetchFeed().then(setFeed).catch(() => setFeed([]));
+  }, []);
+
+  const hasData = feed.length > 0;
+  const trending = Array.from(new Map(feed.map((item) => [item.market.conditionId, item.market])).values()).slice(0, 4);
+
   return (
     <Frame>
       <NavBar />
@@ -100,7 +137,30 @@ export function FeedSurface() {
           </header>
 
           <div>
-            {FEED_ROWS.map((_, index) => (
+            {hasData ? feed.slice(0, 40).map((item) => (
+              <article
+                key={item.id}
+                className="grid grid-cols-[52px_36px_1fr_auto] gap-3 border-b border-dashed border-ink-3 px-4 py-4 sm:px-6"
+              >
+                <span className="font-mono text-[11px] text-ink-3">{relativeTime(item.time)}</span>
+                <span className="h-6 w-6 border border-ink-3" />
+                <div className="grid min-w-0 gap-2">
+                  <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[1px]">
+                    <span className="text-ink">{item.displayLabel}</span>
+                    <span className="text-ink-2">{item.action}</span>
+                    <span className="text-accent">{item.outcome}</span>
+                    <span className="text-ink-3">{formatCurrency(item.size)}</span>
+                  </div>
+                  <p className="truncate font-mono text-[14px] text-ink">{item.market.question}</p>
+                </div>
+                <Link
+                  href="/markets"
+                  className="hidden self-start border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 sm:block"
+                >
+                  view
+                </Link>
+              </article>
+            )) : FEED_ROWS.map((_, index) => (
               <article
                 key={index}
                 className="grid grid-cols-[52px_36px_1fr_auto] gap-3 border-b border-dashed border-ink-3 px-4 py-4 sm:px-6"
@@ -128,7 +188,12 @@ export function FeedSurface() {
             <h2 className="font-mono text-[9px] uppercase tracking-[1.4px] text-ink-3">
               trending with specialists
             </h2>
-            {Array.from({ length: 4 }).map((_, index) => (
+            {hasData ? trending.map((market) => (
+              <div key={market.conditionId} className="flex items-center justify-between gap-3 border border-ink-3 bg-paper px-3 py-3">
+                <span className="truncate font-mono text-[12px] text-ink">{market.question}</span>
+                <span className="shrink-0 font-mono text-[10px] text-accent">{formatCurrency(market.volume24h)}</span>
+              </div>
+            )) : Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="flex items-center justify-between border border-ink-3 bg-paper px-3 py-3">
                 <SkeletonLine width={index % 2 === 0 ? "64%" : "48%"} />
                 <SkeletonLine width="34px" accent={index === 0} />
@@ -145,6 +210,14 @@ export function FeedSurface() {
 }
 
 export function WalletsSurface() {
+  const [wallets, setWallets] = useState<WalletRow[]>([]);
+
+  useEffect(() => {
+    fetchWallets().then(setWallets).catch(() => setWallets([]));
+  }, []);
+
+  const hasData = wallets.length > 0;
+
   return (
     <Frame>
       <NavBar />
@@ -157,7 +230,22 @@ export function WalletsSurface() {
         </section>
 
         <section className="overflow-hidden border border-ink-3 bg-paper-2">
-          {WALLET_ROWS.map((_, index) => (
+          {hasData ? wallets.map((wallet) => (
+            <Link
+              key={wallet.wallet}
+              href={`/wallets/${encodeURIComponent(wallet.wallet)}`}
+              className="grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+            >
+              <span className="h-6 w-6 border border-ink-3" />
+              <div className="min-w-0">
+                <div className="truncate font-mono text-[13px] text-ink">{wallet.displayLabel}</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
+                  {wallet.activeMarkets} markets · {formatCurrency(wallet.totalCurrentSize)}
+                </div>
+              </div>
+              <Pill>detail</Pill>
+            </Link>
+          )) : WALLET_ROWS.map((_, index) => (
             <Link
               key={index}
               href={`/wallets/wallet-${index + 1}`}
@@ -178,6 +266,16 @@ export function WalletsSurface() {
 }
 
 export function WalletDetailSurface({ wallet }: { wallet: string }) {
+  const [detail, setDetail] = useState<WalletDetail | null>(null);
+
+  useEffect(() => {
+    fetchWalletDetail(wallet).then(setDetail).catch(() => setDetail(null));
+  }, [wallet]);
+
+  const displayWallet = detail?.displayLabel ?? wallet;
+  const positions = detail?.positions ?? [];
+  const hasData = Boolean(detail);
+
   return (
     <Frame>
       <NavBar />
@@ -185,17 +283,17 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
         <nav className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
           <Link href="/" className="hover:text-ink-2">leaders</Link>
           <span className="px-1">/</span>
-          <span className="text-ink-2">{wallet}</span>
+          <span className="text-ink-2">{displayWallet}</span>
         </nav>
 
         <header className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex min-w-0 items-center gap-4">
             <div className="h-14 w-14 shrink-0 border border-ink-3" />
             <div className="min-w-0">
-              <h1 className="truncate font-mono text-[22px] text-ink sm:text-[28px]">{wallet}</h1>
+              <h1 className="truncate font-mono text-[22px] text-ink sm:text-[28px]">{displayWallet}</h1>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Pill tone="accent">rank</Pill>
-                <Pill>specialist</Pill>
+                <Pill tone="accent">{hasData ? `rank ${detail?.rank}` : "rank"}</Pill>
+                <Pill>{detail?.categories?.[0] ?? "specialist"}</Pill>
               </div>
             </div>
           </div>
@@ -211,10 +309,10 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
 
         <section className="grid gap-4 lg:grid-cols-[260px_1fr]">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
-            <StatCard label="p&l all-time" value="--" highlight />
-            <StatCard label="p&l 30d" value="--" highlight />
-            <StatCard label="win rate" value="--" />
-            <StatCard label="avg position" value="--" />
+            <StatCard label="p&l all-time" value={hasData ? formatCurrency(detail?.realizedPnl) : "--"} highlight />
+            <StatCard label="p&l 90d" value={hasData ? formatCurrency(detail?.last90dPnl) : "--"} highlight />
+            <StatCard label="roi" value={hasData ? formatPercent(detail?.roi) : "--"} />
+            <StatCard label="current size" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} />
           </div>
           <div className="border border-ink-3 bg-paper-2 p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
@@ -235,7 +333,19 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
               <span>entry / now</span>
               <span>p&l</span>
             </TableHeader>
-            {POSITION_ROWS.map((_, index) => (
+            {hasData ? positions.map((position) => (
+              <div
+                key={position.conditionId}
+                className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+                style={{ gridTemplateColumns: "1fr 72px 96px 128px 100px" }}
+              >
+                <span className="truncate font-mono text-[12px] text-ink">{position.question}</span>
+                <span className="font-mono text-[10px] uppercase text-accent">{position.outcome}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.currentSize)}</span>
+                <span className="font-mono text-[10px] text-ink-2">avg {formatEntry(position.averageEntry)}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.realizedPnl)}</span>
+              </div>
+            )) : POSITION_ROWS.map((_, index) => (
               <div
                 key={index}
                 className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
@@ -255,12 +365,33 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
   );
 }
 
+function LeaderSkeletonRow({ index }: { index: number }) {
+  return (
+    <Link
+      href={`/wallets/wallet-${index + 1}`}
+      className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+      style={{ gridTemplateColumns: "42px 44px 1fr 128px 84px 100px 160px 86px" }}
+    >
+      <span className="font-mono text-[12px] text-ink-3">{String(index + 1).padStart(2, "0")}</span>
+      <span className="h-6 w-6 border border-ink-3" />
+      <SkeletonLine width={index % 2 === 0 ? "70%" : "56%"} />
+      <SkeletonLine width="76%" accent={index < 3} />
+      <SkeletonLine width="42%" />
+      <SkeletonLine width="60%" />
+      <SparkLine up={index < 5} width={120} />
+      <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
+        view
+      </span>
+    </Link>
+  );
+}
+
 function TableHeader({
   columns,
   children,
 }: {
   columns: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div
