@@ -201,29 +201,86 @@ export function leadingOutcome(market: SmartMoneyMarket) {
   return [...market.outcomes].sort((a, b) => b.specialistCount - a.specialistCount)[0] ?? null;
 }
 
-export function pricePercent(price: number | undefined) {
-  if (typeof price !== "number" || Number.isNaN(price)) return 0;
-  return Math.max(0, Math.min(100, price * 100));
+export type MarketGap = {
+  outcome: string;
+  smartShare: number;
+  marketPrice: number | null;
+  gap: number | null;
+  holderSize: number;
+  holderCount: number;
+};
+
+export function marketDiscrepancy(market: SmartMoneyMarket): MarketGap {
+  return marketOutcomeGaps(market)[0] ?? {
+    outcome: "market",
+    smartShare: 0,
+    marketPrice: null,
+    gap: null,
+    holderSize: 0,
+    holderCount: 0,
+  };
 }
 
-export function formatCurrency(value: number | null | undefined) {
+export function marketOutcomeGaps(market: SmartMoneyMarket): MarketGap[] {
+  const totalSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
+  return market.outcomes
+    .map((outcome) => {
+      const smartShare = totalSize > 0 ? outcome.totalCurrentSize / totalSize : 0;
+      const marketPrice = priceForOutcome(market.currentPrices, outcome.outcome);
+      return {
+        outcome: outcome.outcome,
+        smartShare,
+        marketPrice,
+        gap: typeof marketPrice === "number" ? smartShare - marketPrice : null,
+        holderSize: outcome.totalCurrentSize,
+        holderCount: outcome.specialistCount,
+      };
+    })
+    .sort((a, b) => gapMagnitude(b.gap) - gapMagnitude(a.gap));
+}
+
+export function priceForOutcome(prices: Record<string, unknown>, outcome: string) {
+  const normalizedOutcome = outcome.toLowerCase();
+  const exact = Object.entries(prices).find(([key]) => key.toLowerCase() === normalizedOutcome);
+  const exactPrice = toMarketNumber(exact?.[1]);
+  if (typeof exactPrice === "number") return exactPrice;
+  return toMarketNumber(Object.values(prices)[0]);
+}
+
+export function formatSignedPercent(value: number | null | undefined) {
   if (typeof value !== "number" || Number.isNaN(value)) return "--";
+  const percent = value * 100;
+  const rounded = Math.abs(percent) >= 10 ? Math.round(percent) : Math.round(percent * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
+}
+
+export function pricePercent(price: unknown) {
+  const value = toMarketNumber(price);
+  if (typeof value !== "number") return 0;
+  return Math.max(0, Math.min(100, value * 100));
+}
+
+export function formatCurrency(value: number | string | null | undefined) {
+  const numberValue = toMarketNumber(value);
+  if (typeof numberValue !== "number") return "--";
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    notation: Math.abs(value) >= 1000000 ? "compact" : "standard",
-    maximumFractionDigits: Math.abs(value) >= 1000000 ? 1 : 0,
-  }).format(value);
+    notation: Math.abs(numberValue) >= 1000000 ? "compact" : "standard",
+    maximumFractionDigits: Math.abs(numberValue) >= 1000000 ? 1 : 0,
+  }).format(numberValue);
 }
 
-export function formatPercent(value: number | null | undefined) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "--";
-  return `${Math.round(value * 100)}%`;
+export function formatPercent(value: number | string | null | undefined) {
+  const numberValue = toMarketNumber(value);
+  if (typeof numberValue !== "number") return "--";
+  return `${Math.round(numberValue * 100)}%`;
 }
 
-export function formatEntry(value: number | null | undefined) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "n/a";
-  return `${Math.round(value * 100)}c`;
+export function formatEntry(value: number | string | null | undefined) {
+  const numberValue = toMarketNumber(value);
+  if (typeof numberValue !== "number") return "n/a";
+  return `${Math.round(numberValue * 100)}c`;
 }
 
 export function relativeTime(value: string | null | undefined) {
@@ -240,4 +297,14 @@ export function relativeTime(value: string | null | undefined) {
 
 export function marketDetailPath(market: Pick<SmartMoneyMarket, "marketSlug" | "conditionId">) {
   return `/markets/${encodeURIComponent(market.marketSlug || market.conditionId)}`;
+}
+
+function toMarketNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function gapMagnitude(value: number | null) {
+  return typeof value === "number" ? Math.abs(value) : -1;
 }

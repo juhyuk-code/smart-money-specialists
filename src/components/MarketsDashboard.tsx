@@ -10,12 +10,13 @@ import {
   fetchMarkets,
   formatCurrency,
   formatEntry,
+  formatSignedPercent,
+  marketDiscrepancy,
   marketDetailPath,
   readSnapshot,
   relativeTime,
   saveSnapshot,
   specialistCount,
-  type MarketOutcome,
   type SmartMoneyMarket,
 } from "@/lib/smartMoney";
 
@@ -69,7 +70,7 @@ export function MarketsDashboard() {
           .toLowerCase()
           .includes(normalizedQuery);
       })
-      .sort((a, b) => Math.abs(marketDiscrepancy(b).gap) - Math.abs(marketDiscrepancy(a).gap));
+      .sort((a, b) => gapMagnitude(marketDiscrepancy(b).gap) - gapMagnitude(marketDiscrepancy(a).gap));
   }, [category, query, topVolumeMarkets]);
 
   const trackedWallets = new Set(
@@ -120,16 +121,16 @@ export function MarketsDashboard() {
             <StatCard label="tracked wallets" value={topVolumeMarkets.length > 0 ? String(trackedWallets.size) : "--"} />
             <StatCard
               label="largest gap"
-              value={largestGap ? signedPercent(largestGap.gap) : "--"}
+              value={largestGap ? formatSignedPercent(largestGap.gap) : "--"}
               highlight
             />
           </section>
         </section>
 
         {visibleMarkets.length > 0 ? (
-          <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {visibleMarkets.map((market) => (
-              <MarketGapCard key={market.conditionId} market={market} />
+          <section className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-4">
+            {visibleMarkets.map((market, index) => (
+              <MarketGapCard key={market.conditionId} market={market} rank={index + 1} />
             ))}
           </section>
         ) : (
@@ -140,35 +141,36 @@ export function MarketsDashboard() {
   );
 }
 
-function MarketGapCard({ market }: { market: SmartMoneyMarket }) {
+function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: number }) {
   const gap = marketDiscrepancy(market);
   const href = marketDetailPath(market);
   const totalHolders = specialistCount(market);
-  const gapIsPositive = gap.gap >= 0;
+  const hasGap = typeof gap.gap === "number";
+  const gapIsPositive = (gap.gap ?? 0) >= 0;
 
   return (
-    <article className="group relative overflow-hidden rounded-[3px] border border-ink-3 bg-paper-2 transition-colors hover:border-accent">
-      <Link href={href} className="block p-4">
-        <header className="mb-4 grid grid-cols-[34px_1fr] gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper">
-            <span className="h-3 w-3 border border-accent bg-[rgba(96,165,250,0.18)]" aria-hidden="true" />
+    <article className="group relative overflow-hidden rounded-[3px] border border-ink-3 bg-paper-2 transition-colors duration-200 hover:border-accent active:translate-y-px">
+      <Link href={href} className="block p-[15px]">
+        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3 pr-[72px]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper text-[10px] text-accent">
+            {String(rank).padStart(2, "0")}
           </div>
           <div className="min-w-0">
-            <div className="mb-2 flex items-center gap-2">
-              <Pill tone={Math.abs(gap.gap) >= 0.2 ? "accent" : "ink"}>
-                {gapIsPositive ? "holder overweight" : "holder underweight"}
+            <div className="mb-2 flex min-h-[20px] items-center gap-2">
+              <Pill tone={hasGap && Math.abs(gap.gap ?? 0) >= 0.2 ? "accent" : "ink"}>
+                {hasGap ? (gapIsPositive ? "holder overweight" : "holder underweight") : "holder signal"}
               </Pill>
             </div>
-            <h2 className="line-clamp-3 min-h-[58px] font-mono text-[13px] font-medium leading-snug text-ink">
+            <h2 className="line-clamp-2 min-h-[40px] font-mono text-[13px] font-medium leading-snug text-ink">
               {market.question}
             </h2>
           </div>
         </header>
 
-        <div className="mb-4 grid grid-cols-[1fr_110px] items-end gap-3">
+        <div className="mb-5 grid grid-cols-[1fr_112px] items-end gap-3">
           <div>
             <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[#48b890]" : "text-[#d24d57]")}>
-              {signedPercent(gap.gap)}
+              {formatSignedPercent(gap.gap)}
             </div>
             <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
               {gap.outcome} smart gap
@@ -177,7 +179,7 @@ function MarketGapCard({ market }: { market: SmartMoneyMarket }) {
           <SparkLine up={gapIsPositive} width={104} height={42} className="justify-self-end opacity-90" />
         </div>
 
-        <div className="mb-4 grid gap-2">
+        <div className="mb-4 grid gap-[7px]">
           <SplitBar label="holders" value={gap.smartShare} tone="green" />
           <SplitBar label="market" value={gap.marketPrice} tone="red" />
         </div>
@@ -196,14 +198,14 @@ function MarketGapCard({ market }: { market: SmartMoneyMarket }) {
             id: market.marketSlug || market.conditionId,
             label: market.question,
             href,
-            subtitle: `${gap.outcome} gap ${signedPercent(gap.gap)}`,
+            subtitle: `${gap.outcome} gap ${formatSignedPercent(gap.gap)}`,
             tags: market.parentTags,
           }}
           className="bg-paper-2"
         />
       </div>
 
-      <div className="border-t border-ink-3 bg-paper px-4 py-2">
+      <div className="border-t border-ink-3 bg-paper px-[15px] py-2">
         <div className="flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
           <span className="truncate">{market.parentTags[0] ?? "market"}</span>
           <span>{totalHolders} holders</span>
@@ -220,10 +222,11 @@ function SplitBar({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   tone: "green" | "red";
 }) {
-  const width = `${Math.max(0, Math.min(100, value * 100))}%`;
+  const normalized = typeof value === "number" ? value : 0;
+  const width = `${Math.max(0, Math.min(100, normalized * 100))}%`;
   return (
     <div className="grid grid-cols-[54px_1fr_38px] items-center gap-2">
       <span className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">{label}</span>
@@ -233,9 +236,15 @@ function SplitBar({
           style={{ width }}
         />
       </div>
-      <span className="text-right font-mono text-[9px] text-ink-2">{Math.round(value * 100)}%</span>
+      <span className="text-right font-mono text-[9px] text-ink-2">
+        {typeof value === "number" ? `${Math.round(value * 100)}%` : "--"}
+      </span>
     </div>
   );
+}
+
+function gapMagnitude(value: number | null) {
+  return typeof value === "number" ? Math.abs(value) : -1;
 }
 
 function FooterMetric({
@@ -288,47 +297,4 @@ function EmptyOverviewSurface({ registryRefreshedAt }: { registryRefreshedAt: st
       </div>
     </section>
   );
-}
-
-function marketDiscrepancy(market: SmartMoneyMarket) {
-  const totalSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
-  const ranked = market.outcomes
-    .map((outcome) => outcomeGap(outcome, totalSize, market.currentPrices))
-    .sort((a, b) => Math.abs(b.gap) - Math.abs(a.gap));
-
-  return ranked[0] ?? {
-    outcome: "market",
-    smartShare: 0,
-    marketPrice: 0,
-    gap: 0,
-    holderSize: 0,
-  };
-}
-
-function outcomeGap(
-  outcome: MarketOutcome,
-  totalSize: number,
-  prices: Record<string, number>,
-) {
-  const smartShare = totalSize > 0 ? outcome.totalCurrentSize / totalSize : 0;
-  const marketPrice = priceForOutcome(prices, outcome.outcome);
-  return {
-    outcome: outcome.outcome,
-    smartShare,
-    marketPrice,
-    gap: smartShare - marketPrice,
-    holderSize: outcome.totalCurrentSize,
-  };
-}
-
-function priceForOutcome(prices: Record<string, number>, outcome: string) {
-  const normalizedOutcome = outcome.toLowerCase();
-  const exact = Object.entries(prices).find(([key]) => key.toLowerCase() === normalizedOutcome);
-  if (exact && typeof exact[1] === "number") return exact[1];
-  return Object.values(prices).find((value) => typeof value === "number") ?? 0;
-}
-
-function signedPercent(value: number) {
-  const rounded = Math.round(value * 100);
-  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
 }

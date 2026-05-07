@@ -282,6 +282,21 @@ export class PreferenceMcpApi {
         const single = normalizeMarket(payload.market);
         if (single?.slug) this.marketCache.set(single.slug, single);
       }));
+
+      const needsGammaPrices = missing.filter((slug) => {
+        const market = this.marketCache.get(slug);
+        return !market || Object.keys(market.currentPrices ?? {}).length === 0 || !market.conditionId;
+      });
+      if (needsGammaPrices.length > 0) {
+        const gammaMarkets = await fetchGammaMarketsBySlugs(needsGammaPrices);
+        for (const gammaMarket of gammaMarkets) {
+          const normalized = normalizeMarket(gammaMarket);
+          if (!normalized?.slug) continue;
+          const existing = this.marketCache.get(normalized.slug);
+          this.marketCache.set(normalized.slug, mergeMarketMetadata(existing, normalized));
+        }
+      }
+
       for (const slug of missing) {
         if (!this.marketCache.has(slug)) {
           const normalized = normalizeMarket({ slug });
@@ -426,7 +441,7 @@ function normalizeMarket(market) {
   if (!market) return null;
   const outcomes = parseArray(market.outcomes);
   const prices = parseArray(market.outcomePrices ?? market.outcome_prices ?? market.prices);
-  const currentPrices = { ...(market.currentPrices ?? {}) };
+  const currentPrices = normalizeCurrentPrices(market.currentPrices ?? market.current_prices);
   outcomes.forEach((outcome, index) => {
     const price = toNumber(prices[index]);
     if (outcome && typeof price === "number") currentPrices[String(outcome).toUpperCase()] = price;
@@ -445,12 +460,67 @@ function marketSearchFields() {
   return {
     question: true,
     outcomes: true,
+    outcomePrices: true,
+    prices: true,
     volume: true,
     volume24hr: true,
     category: true,
     subcategory: true,
     conditionId: true,
   };
+}
+
+function normalizeCurrentPrices(value) {
+  const prices = {};
+  if (!value || typeof value !== "object" || Array.isArray(value)) return prices;
+  for (const [outcome, priceValue] of Object.entries(value)) {
+    const price = toNumber(priceValue);
+    if (typeof price === "number") prices[String(outcome).toUpperCase()] = price;
+  }
+  return prices;
+}
+
+function mergeMarketMetadata(existing, incoming) {
+  if (!existing) return incoming;
+  return {
+    conditionId: existing.conditionId ?? incoming.conditionId,
+    slug: existing.slug ?? incoming.slug,
+    question: existing.question || incoming.question,
+    rawTags: existing.rawTags?.length ? existing.rawTags : incoming.rawTags,
+    currentPrices: Object.keys(incoming.currentPrices ?? {}).length > 0 ? incoming.currentPrices : existing.currentPrices,
+    volume24h: existing.volume24h ?? incoming.volume24h,
+  };
+}
+
+async function fetchGammaMarketsBySlugs(slugs) {
+  const results = await mapWithConcurrency(slugs, 8, async (slug) => {
+    try {
+      const response = await fetch(`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`, {
+        headers: { accept: "application/json" },
+      });
+      if (!response.ok) return [];
+      return parseArray(await response.json());
+    } catch {
+      return [];
+    }
+  });
+  return results.flat();
+}
+
+async function mapWithConcurrency(items, concurrency, mapper) {
+  const results = [];
+  let index = 0;
+
+  async function worker() {
+    while (index < items.length) {
+      const currentIndex = index;
+      index += 1;
+      results[currentIndex] = await mapper(items[currentIndex], currentIndex);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+  return results;
 }
 
 function normalizeClosedPosition(wallet, item) {
