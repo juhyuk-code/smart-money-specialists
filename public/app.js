@@ -12,6 +12,7 @@ const state = {
   upstreamStatus: null,
   dataSource: null,
   effectiveDataSource: null,
+  cache: null,
   preparedCorpus: null,
   corpusText: "",
   mouse: { x: 0, y: 0 },
@@ -24,6 +25,10 @@ const signalCount = document.querySelector("#signalCount");
 const dominantSignal = document.querySelector("#dominantSignal");
 const coverageState = document.querySelector("#coverageState");
 const dataWarning = document.querySelector("#dataWarning");
+const requestedSource = document.querySelector("#requestedSource");
+const effectiveSource = document.querySelector("#effectiveSource");
+const upstreamState = document.querySelector("#upstreamState");
+const cacheState = document.querySelector("#cacheState");
 const signalCanvas = document.querySelector("#signalCanvas");
 const signalContext = signalCanvas.getContext("2d");
 const categoryFilter = document.querySelector("#categoryFilter");
@@ -98,6 +103,7 @@ async function loadMarkets() {
   state.dataSource = data.dataSource ?? null;
   state.effectiveDataSource = data.effectiveDataSource ?? data.dataSource ?? null;
   state.upstreamStatus = data.upstreamStatus ?? null;
+  state.cache = data.cache ?? null;
   prepareSignalCorpus(state.markets);
   freshness.textContent = `Registry refreshed ${relativeTime(data.registryRefreshedAt)}`;
   render();
@@ -106,6 +112,7 @@ async function loadMarkets() {
 function render() {
   const markets = sorted(filtered(state.markets));
   renderDataWarning();
+  renderSystemStatus();
   renderSummary(markets);
   if (markets.length === 0) {
     list.innerHTML = `<div class="empty">No markets match the current filters.</div>`;
@@ -115,6 +122,13 @@ function render() {
   list.querySelectorAll(".market-summary").forEach((button) => {
     button.addEventListener("click", () => button.closest(".market").classList.toggle("open"));
   });
+}
+
+function renderSystemStatus() {
+  requestedSource.textContent = state.dataSource ?? "unknown";
+  effectiveSource.textContent = state.effectiveDataSource ?? "unknown";
+  upstreamState.textContent = state.upstreamStatus?.status ?? "ok";
+  cacheState.textContent = state.cache?.status === "hit" ? `hit ${relativeTime(state.cache.cachedAt)}` : state.cache?.status ?? "miss";
 }
 
 function renderDataWarning() {
