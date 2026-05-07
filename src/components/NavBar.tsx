@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useEffect, useState } from "react";
 import clsx from "clsx";
 import { LiveDot } from "./ui";
 
@@ -25,9 +26,19 @@ const WALLET_ITEMS = [
 
 export function NavBar() {
   const pathname = usePathname();
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    setActiveCategory(new URLSearchParams(window.location.search).get("category"));
+  }, [pathname]);
+
   const isActive = (href: string) => {
     const baseHref = href.split("?")[0];
-    if (baseHref === "/wallets") return pathname === "/wallets" && !href.includes("?");
+    const hrefCategory = new URLSearchParams(href.split("?")[1] ?? "").get("category");
+    if (baseHref === "/wallets") {
+      if (pathname !== "/wallets") return false;
+      return hrefCategory ? activeCategory === hrefCategory : !activeCategory;
+    }
     if (baseHref === "/") return pathname === "/";
     return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
   };
