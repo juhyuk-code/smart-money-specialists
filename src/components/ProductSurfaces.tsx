@@ -110,6 +110,8 @@ export function FeedSurface() {
 
   const hasData = feed.length > 0;
   const trending = Array.from(new Map(feed.map((item) => [item.market.conditionId, item.market])).values()).slice(0, 4);
+  const totalFlow = feed.reduce((sum, item) => sum + item.size, 0);
+  const largePrint = [...feed].sort((a, b) => b.size - a.size)[0] ?? null;
 
   return (
     <Frame>
@@ -137,14 +139,21 @@ export function FeedSurface() {
             </div>
           </header>
 
+          <section className="grid grid-cols-1 gap-3 border-b border-ink-3 bg-paper/70 p-4 sm:grid-cols-3 sm:p-5">
+            <TapeMetric label="prints" value={hasData ? String(feed.length) : "--"} />
+            <TapeMetric label="flow size" value={hasData ? formatCurrency(totalFlow) : "--"} tone="accent" />
+            <TapeMetric label="largest print" value={largePrint ? formatCurrency(largePrint.size) : "--"} />
+          </section>
+
           <div>
             {hasData ? feed.slice(0, 40).map((item) => (
-              <article
+              <Link
                 key={item.id}
+                href={marketDetailPath(item.market)}
                 className="row-hover grid grid-cols-[52px_36px_1fr_auto] gap-3 border-b border-dashed border-ink-3 px-4 py-4 sm:px-6"
               >
                 <span className="font-mono text-[11px] text-ink-3">{relativeTime(item.time)}</span>
-                <span className="h-6 w-6 border border-ink-3" />
+                <span className="h-6 w-6 border border-ink-3 bg-ink-bg-soft shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" />
                 <div className="grid min-w-0 gap-2">
                   <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[1px]">
                     <span className="text-ink">{item.displayLabel}</span>
@@ -154,13 +163,10 @@ export function FeedSurface() {
                   </div>
                   <p className="truncate font-mono text-[14px] text-ink">{item.market.question}</p>
                 </div>
-                <Link
-                  href={marketDetailPath(item.market)}
-                  className="hidden self-start border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 sm:block"
-                >
-                  view
-                </Link>
-              </article>
+                <span className="hidden self-start rounded-[2px] border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 sm:block">
+                  open
+                </span>
+              </Link>
             )) : FEED_ROWS.map((_, index) => (
               <article
                 key={index}
@@ -176,33 +182,31 @@ export function FeedSurface() {
                   </div>
                   <SkeletonLine width={index % 2 === 0 ? "72%" : "52%"} height="14px" />
                 </div>
-                <span className="hidden self-start border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 sm:block">
-                  view
-                </span>
+                <SkeletonLine width="38px" />
               </article>
             ))}
           </div>
         </section>
 
-        <aside className="grid content-between gap-6 bg-paper-2 p-4 sm:p-5">
+        <aside className="grid content-start gap-6 bg-paper-2 p-4 sm:p-5">
           <section className="grid gap-3">
             <h2 className="font-mono text-[9px] uppercase tracking-[1.4px] text-ink-3">
-              trending with holders
+              market tape
             </h2>
             {hasData ? trending.map((market) => (
-              <div key={market.conditionId} className="surface-card flex items-center justify-between gap-3 rounded-[3px] px-3 py-3">
+              <Link key={market.conditionId} href={marketDetailPath(market)} className="surface-card flex items-center justify-between gap-3 rounded-[3px] px-3 py-3">
                 <span className="truncate font-mono text-[12px] text-ink">{market.question}</span>
                 <span className="shrink-0 font-mono text-[10px] text-accent">{formatCurrency(market.volume24h)}</span>
-              </div>
+              </Link>
             )) : Array.from({ length: 4 }).map((_, index) => (
-              <div key={index} className="flex items-center justify-between border border-ink-3 bg-paper px-3 py-3">
+              <div key={index} className="surface-card flex items-center justify-between rounded-[3px] px-3 py-3">
                 <SkeletonLine width={index % 2 === 0 ? "64%" : "48%"} />
                 <SkeletonLine width="34px" accent={index === 0} />
               </div>
             ))}
           </section>
-          <div className="border border-dashed border-accent p-3 font-mono text-[10px] uppercase tracking-[1px] text-accent">
-            context rail
+          <div className="rounded-[3px] border border-dashed border-accent bg-[rgba(97,168,255,0.045)] p-3 font-mono text-[10px] uppercase tracking-[1px] text-accent">
+            live stream follows tracked holder activity
           </div>
         </aside>
       </main>
@@ -226,6 +230,8 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
         );
   const categoryLabel = normalizedCategory === "all" ? "all" : normalizedCategory;
   const hasData = filteredWallets.length > 0;
+  const totalExposure = filteredWallets.reduce((sum, wallet) => sum + wallet.totalCurrentSize, 0);
+  const totalMarkets = filteredWallets.reduce((sum, wallet) => sum + wallet.activeMarkets, 0);
 
   return (
     <Frame>
@@ -247,6 +253,12 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
           </div>
         </section>
 
+        <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <TapeMetric label="wallets" value={hasData ? String(filteredWallets.length) : "--"} />
+          <TapeMetric label="exposure" value={hasData ? formatCurrency(totalExposure) : "--"} tone="accent" />
+          <TapeMetric label="open markets" value={hasData ? String(totalMarkets) : "--"} />
+        </section>
+
         <section className="surface-card overflow-hidden rounded-[3px]">
           {hasData ? filteredWallets.map((wallet) => (
             <Link
@@ -257,11 +269,17 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
               <span className="h-6 w-6 border border-ink-3" />
               <div className="min-w-0">
                 <div className="truncate font-mono text-[13px] text-ink">{wallet.displayLabel}</div>
-                <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
-                  {wallet.activeMarkets} markets · {formatCurrency(wallet.totalCurrentSize)}
+                <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
+                  <span>{wallet.activeMarkets} markets</span>
+                  <span className="text-accent">{formatCurrency(wallet.totalCurrentSize)}</span>
+                  {(wallet.categories ?? []).slice(0, 2).map((item) => (
+                    <span key={item} className="text-ink-2">{item}</span>
+                  ))}
                 </div>
               </div>
-              <SkeletonLine width="44px" />
+              <span className="rounded-[2px] border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
+                open
+              </span>
             </Link>
           )) : wallets.length > 0 ? (
             <div className="px-4 py-10 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">
@@ -277,12 +295,31 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
                 <SkeletonLine width={index % 2 === 0 ? "220px" : "160px"} />
                 <SkeletonLine width="110px" />
               </div>
-              <Pill>detail</Pill>
+              <SkeletonLine width="44px" />
             </div>
           ))}
         </section>
       </main>
     </Frame>
+  );
+}
+
+function TapeMetric({
+  label,
+  value,
+  tone = "ink",
+}: {
+  label: string;
+  value: string;
+  tone?: "ink" | "accent";
+}) {
+  return (
+    <div className="surface-card rounded-[3px] px-3 py-3">
+      <div className="mb-1 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
+      <div className={tone === "accent" ? "truncate font-mono text-[18px] text-accent" : "truncate font-mono text-[18px] text-ink"}>
+        {value}
+      </div>
+    </div>
   );
 }
 
