@@ -12,7 +12,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "pref",
   description:
-    "Track specialist positioning, public odds, and market volume on Polymarket.",
+    "Track current holder positioning, public odds, and market volume on Polymarket.",
 };
 
 export default function RootLayout({

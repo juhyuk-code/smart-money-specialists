@@ -6,7 +6,7 @@ import clsx from "clsx";
 import { LiveDot } from "./ui";
 
 const ITEMS = [
-  { label: "LEADERS", href: "/" },
+  { label: "HOLDERS", href: "/" },
   { label: "FEED", href: "/feed" },
   { label: "MARKETS", href: "/markets" },
   { label: "WALLETS", href: "/wallets" },

@@ -13,7 +13,6 @@ import {
   fetchWallets,
   formatCurrency,
   formatEntry,
-  formatPercent,
   marketDetailPath,
   relativeTime,
   type FeedEvent,
@@ -36,8 +35,7 @@ export function LeadersSurface() {
 
   const hasData = leaders.length > 0;
   const totalVolume = leaders.reduce((sum, leader) => sum + leader.totalCurrentSize, 0);
-  const roiLeaders = leaders.filter((leader) => typeof leader.roi === "number");
-  const avgRoi = roiLeaders.length > 0 ? roiLeaders.reduce((sum, leader) => sum + (leader.roi ?? 0), 0) / roiLeaders.length : null;
+  const totalPositions = leaders.reduce((sum, leader) => sum + leader.activeMarkets, 0);
 
   return (
     <Frame>
@@ -45,9 +43,9 @@ export function LeadersSurface() {
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">
-            <Eyebrow>{"// LEADERBOARD ▸ 30D"}</Eyebrow>
+            <Eyebrow>{"// HOLDERS ▸ CURRENT EXPOSURE"}</Eyebrow>
             <h1 className="font-mono text-[19px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[21px] md:text-[24px]">
-              PREF · LEADERS
+              PREF · HOLDERS
             </h1>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
@@ -60,9 +58,9 @@ export function LeadersSurface() {
 
         <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <StatCard label="tracked wallets" value={hasData ? String(leaders.length) : "--"} />
-          <StatCard label="avg roi" value={hasData ? formatPercent(avgRoi) : "--"} highlight />
-          <StatCard label="current size" value={hasData ? formatCurrency(totalVolume) : "--"} highlight />
-          <StatCard label="top wallet" value={hasData ? leaders[0].displayLabel : "--"} />
+          <StatCard label="open positions" value={hasData ? String(totalPositions) : "--"} highlight />
+          <StatCard label="current exposure" value={hasData ? formatCurrency(totalVolume) : "--"} highlight />
+          <StatCard label="top holder" value={hasData ? leaders[0].displayLabel : "--"} />
         </section>
 
         <section className="overflow-x-auto border border-ink-3 bg-paper-2">
@@ -71,9 +69,9 @@ export function LeadersSurface() {
               <span>#</span>
               <span />
               <span>wallet</span>
-              <span>p&l</span>
-              <span>win %</span>
-              <span>volume</span>
+              <span>exposure</span>
+              <span>markets</span>
+              <span>signal</span>
               <span>trend</span>
               <span />
             </TableHeader>
@@ -87,9 +85,9 @@ export function LeadersSurface() {
                 <span className="font-mono text-[12px] text-ink-3">{String(leader.rank).padStart(2, "0")}</span>
                 <span className="h-6 w-6 border border-ink-3" />
                 <span className="truncate font-mono text-[12px] text-ink">{leader.displayLabel}</span>
-                <span className="font-mono text-[13px] text-accent">{formatCurrency(leader.realizedPnl)}</span>
-                <span className="font-mono text-[11px] text-ink-2">{formatPercent(leader.roi)}</span>
                 <span className="font-mono text-[11px] text-ink-2">{formatCurrency(leader.totalCurrentSize)}</span>
+                <span className="font-mono text-[11px] text-ink-2">{leader.activeMarkets}</span>
+                <span className="font-mono text-[11px] uppercase text-ink-2">{leader.outcomes[0] ?? "--"}</span>
                 <SparkLine up={(leader.realizedPnl ?? leader.totalCurrentSize) >= 0} width={120} />
                 <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
                   view
@@ -122,7 +120,7 @@ export function FeedSurface() {
             <div className="flex flex-col gap-[6px]">
               <Eyebrow>{"// FEED ▸ STREAM"}</Eyebrow>
               <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-                LIVE SPECIALIST FEED
+                LIVE HOLDER FEED
               </h1>
               <div className="flex items-center gap-[6px]">
                 <span className="live-dot" />
@@ -189,7 +187,7 @@ export function FeedSurface() {
         <aside className="grid content-between gap-6 bg-paper-2 p-4 sm:p-5">
           <section className="grid gap-3">
             <h2 className="font-mono text-[9px] uppercase tracking-[1.4px] text-ink-3">
-              trending with specialists
+              trending with holders
             </h2>
             {hasData ? trending.map((market) => (
               <div key={market.conditionId} className="flex items-center justify-between gap-3 border border-ink-3 bg-paper px-3 py-3">
@@ -228,7 +226,7 @@ export function WalletsSurface() {
         <section className="mb-5 flex flex-col gap-[6px]">
           <Eyebrow>{"// WALLETS ▸ INDEX"}</Eyebrow>
           <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-            SPECIALIST WALLETS
+            HOLDER WALLETS
           </h1>
         </section>
 
@@ -284,7 +282,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
       <NavBar />
       <main className="grid gap-6 px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <nav className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-          <Link href="/" className="hover:text-ink-2">leaders</Link>
+          <Link href="/" className="hover:text-ink-2">holders</Link>
           <span className="px-1">/</span>
           <span className="text-ink-2">{displayWallet}</span>
         </nav>
@@ -296,7 +294,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
               <h1 className="truncate font-mono text-[22px] text-ink sm:text-[28px]">{displayWallet}</h1>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Pill tone="accent">{hasData ? `rank ${detail?.rank}` : "rank"}</Pill>
-                <Pill>{detail?.categories?.[0] ?? "specialist"}</Pill>
+                <Pill>{detail?.categories?.[0] ?? "holder"}</Pill>
               </div>
             </div>
           </div>
@@ -319,14 +317,14 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
 
         <section className="grid gap-4 lg:grid-cols-[260px_1fr]">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
-            <StatCard label="p&l all-time" value={hasData ? formatCurrency(detail?.realizedPnl) : "--"} highlight />
-            <StatCard label="p&l 90d" value={hasData ? formatCurrency(detail?.last90dPnl) : "--"} highlight />
-            <StatCard label="roi" value={hasData ? formatPercent(detail?.roi) : "--"} />
-            <StatCard label="current size" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} />
+            <StatCard label="current exposure" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} highlight />
+            <StatCard label="open markets" value={hasData ? String(detail?.activeMarkets ?? 0) : "--"} highlight />
+            <StatCard label="signal type" value={hasData ? "current" : "--"} />
+            <StatCard label="wallet source" value={hasData ? "holder" : "--"} />
           </div>
           <div className="border border-ink-3 bg-paper-2 p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
-              pnl over time
+              exposure over time
             </div>
             <div className="flex h-[260px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft">
               <span className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">curve surface</span>
@@ -341,7 +339,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
               <span>side</span>
               <span>size</span>
               <span>entry / now</span>
-              <span>p&l</span>
+              <span>signal</span>
             </TableHeader>
             {hasData ? positions.map((position) => (
               <div
@@ -353,7 +351,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
                 <span className="font-mono text-[10px] uppercase text-accent">{position.outcome}</span>
                 <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.currentSize)}</span>
                 <span className="font-mono text-[10px] text-ink-2">avg {formatEntry(position.averageEntry)}</span>
-                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.realizedPnl)}</span>
+                <span className="font-mono text-[10px] uppercase text-ink-2">{position.outcome}</span>
               </div>
             )) : POSITION_ROWS.map((_, index) => (
               <div

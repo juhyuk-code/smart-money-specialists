@@ -10,7 +10,6 @@ import {
   fetchMarkets,
   formatCurrency,
   formatEntry,
-  formatPercent,
   leadingOutcome,
   marketDetailPath,
   pricePercent,
@@ -22,7 +21,7 @@ import {
   type SmartMoneyMarket,
 } from "@/lib/smartMoney";
 
-type SortMode = "volume" | "specialists" | "skew";
+type SortMode = "volume" | "holders" | "skew";
 type ScanState = "idle" | "scanning" | "settled";
 
 export function MarketsDashboard() {
@@ -75,7 +74,7 @@ export function MarketsDashboard() {
           .includes(normalizedQuery);
       })
       .sort((a, b) => {
-        if (sortMode === "specialists") return specialistCount(b) - specialistCount(a);
+        if (sortMode === "holders") return specialistCount(b) - specialistCount(a);
         if (sortMode === "skew") return Math.abs(priceSkew(b)) - Math.abs(priceSkew(a));
         return (b.volume24h ?? 0) - (a.volume24h ?? 0);
       });
@@ -131,12 +130,12 @@ export function MarketsDashboard() {
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">
-            <Eyebrow>{"// MARKETS ▸ SMART-MONEY SIGNAL"}</Eyebrow>
+            <Eyebrow>{"// MARKETS ▸ HOLDER SIGNAL"}</Eyebrow>
             <h1 className="font-mono text-[19px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[21px] md:text-[24px]">
               PREF · POLYMARKET
             </h1>
             <p className="max-w-[760px] font-mono text-[12px] leading-relaxed text-ink-2">
-              Specialist positioning, public odds, and market volume in one view.
+              Current holder positioning, public odds, and market volume in one view.
             </p>
           </div>
 
@@ -153,7 +152,7 @@ export function MarketsDashboard() {
 
         <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
           <StatCard label="markets scanned" value={hasMarkets ? String(markets.length) : "--"} />
-          <StatCard label="with specialist signal" value={hasMarkets ? String(readyMarkets.length) : "--"} highlight />
+          <StatCard label="with holder signal" value={hasMarkets ? String(readyMarkets.length) : "--"} highlight />
           <StatCard label="tracked wallets" value={hasMarkets ? String(trackedWallets.size) : "--"} />
           <StatCard label="latest snapshot" value={hasMarkets ? relativeTime(registryRefreshedAt) : "--"} highlight />
         </section>
@@ -206,7 +205,7 @@ export function MarketsDashboard() {
               className="h-9 border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none focus:border-accent sm:h-8"
             >
               <option value="volume">volume</option>
-              <option value="specialists">specialists</option>
+              <option value="holders">holders</option>
               <option value="skew">price skew</option>
             </select>
           </div>
@@ -247,7 +246,7 @@ function MarketCard({
   const primaryPrice = Object.entries(market.currentPrices)[0];
   const secondaryPrice = Object.entries(market.currentPrices)[1];
   const lead = leadingOutcome(market);
-  const specialists = market.outcomes.flatMap((outcome) => outcome.topSpecialists).slice(0, 4);
+  const holders = market.outcomes.flatMap((outcome) => outcome.topSpecialists).slice(0, 4);
   const yesWidth = pricePercent(primaryPrice?.[1]);
 
   return (
@@ -320,29 +319,29 @@ function MarketCard({
       </header>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Metric label="smart-money lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "watching"} />
+        <Metric label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "watching"} />
         <Metric label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
         <Metric label="24h volume" value={formatCurrency(market.volume24h)} />
       </div>
 
-      {specialists.length > 0 ? (
+      {holders.length > 0 ? (
         <div className="overflow-x-auto border border-ink-3">
           <div className="min-w-[420px]">
             <div className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
               <span>wallet</span>
               <span>outcome</span>
-              <span>pnl</span>
-              <span>roi</span>
+              <span>size</span>
+              <span>entry</span>
             </div>
-            {specialists.map((specialist) => (
+            {holders.map((holder) => (
               <div
-                key={`${market.conditionId}-${specialist.wallet}-${specialist.currentOutcome}`}
+                key={`${market.conditionId}-${holder.wallet}-${holder.currentOutcome}`}
                 className="grid grid-cols-[1fr_74px_70px_54px] gap-3 border-b border-dashed border-ink-3 px-3 py-2 last:border-b-0"
               >
-                <span className="truncate font-mono text-[11px] text-ink">{specialist.displayLabel}</span>
-                <span className="font-mono text-[10px] uppercase text-accent">{specialist.currentOutcome}</span>
-                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(specialist.realizedPnl)}</span>
-                <span className="font-mono text-[10px] text-ink-2">{formatPercent(specialist.roi)}</span>
+                <span className="truncate font-mono text-[11px] text-ink">{holder.displayLabel}</span>
+                <span className="font-mono text-[10px] uppercase text-accent">{holder.currentOutcome}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(holder.currentSize)}</span>
+                <span className="font-mono text-[10px] text-ink-2">{formatEntry(holder.averageEntry)}</span>
               </div>
             ))}
           </div>
@@ -366,7 +365,7 @@ function MarketDetailPanel({
 }) {
   const prices = Object.entries(market.currentPrices);
   const lead = leadingOutcome(market);
-  const specialists = market.outcomes.flatMap((outcome) =>
+  const holders = market.outcomes.flatMap((outcome) =>
     outcome.topSpecialists.map((specialist) => ({
       ...specialist,
       outcome,
@@ -402,7 +401,7 @@ function MarketDetailPanel({
 
         <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-5">
           <section className="mb-4 grid gap-3 sm:grid-cols-3">
-            <Metric label="smart-money lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "watching"} />
+            <Metric label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "watching"} />
             <Metric label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
             <Metric label="24h volume" value={formatCurrency(market.volume24h)} />
           </section>
@@ -433,7 +432,7 @@ function MarketDetailPanel({
 
           <section className="mb-4 border border-ink-3 bg-paper-2">
             <div className="border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
-              specialist split
+              holder split
             </div>
             {market.outcomes.length > 0 ? (
               <div className="grid gap-2 p-3">
@@ -459,7 +458,7 @@ function MarketDetailPanel({
             )}
           </section>
 
-          {specialists.length > 0 ? (
+          {holders.length > 0 ? (
             <section className="overflow-x-auto border border-ink-3 bg-paper-2">
               <div className="min-w-[640px]">
                 <div className="grid grid-cols-[1fr_86px_90px_86px_70px_72px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
@@ -467,20 +466,20 @@ function MarketDetailPanel({
                   <span>outcome</span>
                   <span>size</span>
                   <span>entry</span>
-                  <span>pnl</span>
-                  <span>roi</span>
+                  <span>source</span>
+                  <span>signal</span>
                 </div>
-                {specialists.map((specialist) => (
+                {holders.map((holder) => (
                   <div
-                    key={`${specialist.wallet}-${specialist.currentOutcome}-${specialist.currentSize}`}
+                    key={`${holder.wallet}-${holder.currentOutcome}-${holder.currentSize}`}
                     className="grid grid-cols-[1fr_86px_90px_86px_70px_72px] gap-3 border-b border-dashed border-ink-3 px-3 py-2 last:border-b-0"
                   >
-                    <span className="truncate font-mono text-[11px] text-ink">{specialist.displayLabel}</span>
-                    <span className="font-mono text-[10px] uppercase text-accent">{specialist.currentOutcome}</span>
-                    <span className="font-mono text-[10px] text-ink-2">{formatCurrency(specialist.currentSize)}</span>
-                    <span className="font-mono text-[10px] text-ink-2">{formatEntry(specialist.averageEntry)}</span>
-                    <span className="font-mono text-[10px] text-ink-2">{formatCurrency(specialist.realizedPnl)}</span>
-                    <span className="font-mono text-[10px] text-ink-2">{formatPercent(specialist.roi)}</span>
+                    <span className="truncate font-mono text-[11px] text-ink">{holder.displayLabel}</span>
+                    <span className="font-mono text-[10px] uppercase text-accent">{holder.currentOutcome}</span>
+                    <span className="font-mono text-[10px] text-ink-2">{formatCurrency(holder.currentSize)}</span>
+                    <span className="font-mono text-[10px] text-ink-2">{formatEntry(holder.averageEntry)}</span>
+                    <span className="font-mono text-[10px] text-ink-2">holder</span>
+                    <span className="font-mono text-[10px] uppercase text-ink-2">{holder.currentOutcome}</span>
                   </div>
                 ))}
               </div>
@@ -507,7 +506,7 @@ function MarketDetailPanel({
 }
 
 function EmptyMarketSurface() {
-  const rows = ["market", "odds", "specialists", "entry", "volume"];
+  const rows = ["market", "odds", "holders", "entry", "volume"];
 
   return (
     <section className="border border-dashed border-ink-3 bg-paper-2">
@@ -547,7 +546,7 @@ function EmptyMarketSurface() {
         <div className="grid content-between gap-4 border border-ink-3 bg-ink-bg-soft p-4">
           <div>
             <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
-              specialist table
+              holder table
             </div>
             <div className="grid gap-2">
               {Array.from({ length: 6 }).map((_, index) => (

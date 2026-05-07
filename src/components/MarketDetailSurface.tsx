@@ -9,7 +9,6 @@ import {
   fetchMarketDetail,
   formatCurrency,
   formatEntry,
-  formatPercent,
   leadingOutcome,
   marketDetailPath,
   pricePercent,
@@ -40,14 +39,14 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
 
   const prices = Object.entries(market.currentPrices);
   const lead = leadingOutcome(market);
-  const specialists = market.outcomes.flatMap((outcome) =>
+  const holders = market.outcomes.flatMap((outcome) =>
     outcome.topSpecialists.map((specialist) => ({
       ...specialist,
       outcomeCount: outcome.specialistCount,
       outcomeSize: outcome.totalCurrentSize,
     })),
   );
-  const topWallets = [...specialists].sort((a, b) => b.currentSize - a.currentSize).slice(0, 8);
+  const topWallets = [...holders].sort((a, b) => b.currentSize - a.currentSize).slice(0, 8);
   const totalPositionSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
   const categories = market.parentTags.length > 0 ? market.parentTags : ["market"];
 
@@ -97,7 +96,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-          <StatCard label="smart-money lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
+          <StatCard label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
           <StatCard label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
           <StatCard label="position size" value={formatCurrency(totalPositionSize)} highlight />
           <StatCard label="24h volume" value={formatCurrency(market.volume24h)} />
@@ -117,7 +116,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </div>
               <div className="grid gap-3">
                 <SideMetric label="headline" value={market.headline || "Watching"} />
-                <SideMetric label="specialists" value={String(specialistCount(market))} />
+                <SideMetric label="holders" value={String(specialistCount(market))} />
                 <SideMetric label="market data" value={relativeTime(market.marketDataRefreshedAt)} />
                 <SideMetric label="registry" value={relativeTime(market.registryRefreshedAt)} />
               </div>
@@ -166,7 +165,7 @@ function OutcomePanel({ market }: { market: SmartMoneyMarket }) {
     <section className="border border-ink-3 bg-paper-2">
       <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
         <span>outcome</span>
-        <span>specialists</span>
+        <span>holders</span>
         <span>size</span>
         <span>avg entry</span>
       </div>
@@ -196,8 +195,6 @@ function TopWalletsTable({
     currentOutcome: string;
     currentSize: number;
     averageEntry: number | null;
-    realizedPnl: number | null;
-    roi: number | null;
   }>;
 }) {
   return (
@@ -208,8 +205,8 @@ function TopWalletsTable({
           <span>side</span>
           <span>size</span>
           <span>entry</span>
-          <span>p&l</span>
-          <span>roi</span>
+          <span>source</span>
+          <span>signal</span>
         </div>
         {wallets.length > 0 ? wallets.map((wallet) => (
           <Link
@@ -221,8 +218,8 @@ function TopWalletsTable({
             <span className="font-mono text-[10px] uppercase text-accent">{wallet.currentOutcome}</span>
             <span className="font-mono text-[10px] text-ink-2">{formatCurrency(wallet.currentSize)}</span>
             <span className="font-mono text-[10px] text-ink-2">{formatEntry(wallet.averageEntry)}</span>
-            <span className="font-mono text-[10px] text-ink-2">{formatCurrency(wallet.realizedPnl)}</span>
-            <span className="font-mono text-[10px] text-ink-2">{formatPercent(wallet.roi)}</span>
+            <span className="font-mono text-[10px] text-ink-2">holder</span>
+            <span className="font-mono text-[10px] uppercase text-ink-2">{wallet.currentOutcome}</span>
           </Link>
         )) : (
           <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
