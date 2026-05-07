@@ -103,6 +103,10 @@ export type FeedEvent = {
 
 export const SNAPSHOT_KEY = "pref:last-market-snapshot";
 const LEGACY_SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
+const LEADERS_SNAPSHOT_KEY = "pref:last-leaders-snapshot";
+const FEED_SNAPSHOT_KEY = "pref:last-feed-snapshot";
+const WALLETS_SNAPSHOT_KEY = "pref:last-wallets-snapshot";
+const WALLET_DETAIL_SNAPSHOT_PREFIX = "pref:last-wallet-detail:";
 
 export function saveSnapshot(payload: MarketsPayload) {
   if (typeof window === "undefined" || payload.markets.length === 0) return;
@@ -125,6 +129,43 @@ export function readSnapshot(): Snapshot | null {
   } catch {
     return null;
   }
+}
+
+function saveClientSnapshot<T>(key: string, value: T, isUseful: (value: T) => boolean) {
+  if (typeof window === "undefined" || !isUseful(value)) return;
+  window.localStorage.setItem(
+    key,
+    JSON.stringify({
+      value,
+      savedAt: new Date().toISOString(),
+    }),
+  );
+}
+
+function readClientSnapshot<T>(key: string, isUseful: (value: unknown) => value is T): T | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null");
+    return isUseful(parsed?.value) ? parsed.value : null;
+  } catch {
+    return null;
+  }
+}
+
+function isLeaderArray(value: unknown): value is Leader[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function isFeedArray(value: unknown): value is FeedEvent[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function isWalletArray(value: unknown): value is WalletRow[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
+function isWalletDetail(value: unknown): value is WalletDetail {
+  return Boolean(value && typeof value === "object" && "wallet" in value);
 }
 
 export async function fetchMarkets(): Promise<MarketsPayload | null> {
@@ -160,29 +201,53 @@ export async function scanCustomMarket(url: string): Promise<MarketsPayload | nu
 }
 
 export async function fetchLeaders(): Promise<Leader[]> {
-  const response = await fetch("/api/smart-money/leaders", { headers: { accept: "application/json" } });
-  const data = await response.json();
-  return Array.isArray(data.leaders) ? data.leaders : [];
+  try {
+    const response = await fetch("/api/smart-money/leaders", { headers: { accept: "application/json" } });
+    const data = await response.json();
+    const leaders = Array.isArray(data.leaders) ? data.leaders : [];
+    saveClientSnapshot(LEADERS_SNAPSHOT_KEY, leaders, isLeaderArray);
+    return leaders.length > 0 ? leaders : readClientSnapshot(LEADERS_SNAPSHOT_KEY, isLeaderArray) ?? [];
+  } catch {
+    return readClientSnapshot(LEADERS_SNAPSHOT_KEY, isLeaderArray) ?? [];
+  }
 }
 
 export async function fetchFeed(): Promise<FeedEvent[]> {
-  const response = await fetch("/api/smart-money/feed", { headers: { accept: "application/json" } });
-  const data = await response.json();
-  return Array.isArray(data.feed) ? data.feed : [];
+  try {
+    const response = await fetch("/api/smart-money/feed", { headers: { accept: "application/json" } });
+    const data = await response.json();
+    const feed = Array.isArray(data.feed) ? data.feed : [];
+    saveClientSnapshot(FEED_SNAPSHOT_KEY, feed, isFeedArray);
+    return feed.length > 0 ? feed : readClientSnapshot(FEED_SNAPSHOT_KEY, isFeedArray) ?? [];
+  } catch {
+    return readClientSnapshot(FEED_SNAPSHOT_KEY, isFeedArray) ?? [];
+  }
 }
 
 export async function fetchWallets(): Promise<WalletRow[]> {
-  const response = await fetch("/api/smart-money/wallets", { headers: { accept: "application/json" } });
-  const data = await response.json();
-  return Array.isArray(data.wallets) ? data.wallets : [];
+  try {
+    const response = await fetch("/api/smart-money/wallets", { headers: { accept: "application/json" } });
+    const data = await response.json();
+    const wallets = Array.isArray(data.wallets) ? data.wallets : [];
+    saveClientSnapshot(WALLETS_SNAPSHOT_KEY, wallets, isWalletArray);
+    return wallets.length > 0 ? wallets : readClientSnapshot(WALLETS_SNAPSHOT_KEY, isWalletArray) ?? [];
+  } catch {
+    return readClientSnapshot(WALLETS_SNAPSHOT_KEY, isWalletArray) ?? [];
+  }
 }
 
 export async function fetchWalletDetail(wallet: string): Promise<WalletDetail | null> {
-  const response = await fetch(`/api/smart-money/wallets/${encodeURIComponent(wallet)}`, {
-    headers: { accept: "application/json" },
-  });
-  const data = await response.json();
-  return data.wallet ?? null;
+  const cacheKey = `${WALLET_DETAIL_SNAPSHOT_PREFIX}${wallet.toLowerCase()}`;
+  try {
+    const response = await fetch(`/api/smart-money/wallets/${encodeURIComponent(wallet)}`, {
+      headers: { accept: "application/json" },
+    });
+    const data = await response.json();
+    if (data.wallet) saveClientSnapshot(cacheKey, data.wallet, isWalletDetail);
+    return data.wallet ?? readClientSnapshot(cacheKey, isWalletDetail);
+  } catch {
+    return readClientSnapshot(cacheKey, isWalletDetail);
+  }
 }
 
 export async function fetchMarketDetail(marketId: string): Promise<SmartMoneyMarket | null> {
