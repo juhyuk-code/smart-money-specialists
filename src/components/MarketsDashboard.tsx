@@ -93,9 +93,11 @@ export function MarketsDashboard() {
               <h1 className="mt-2 font-mono text-[22px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[26px]">
                 OVERVIEW
               </h1>
-              <p className="mt-2 max-w-[820px] font-mono text-[12px] leading-relaxed text-ink-2">
-                Top 40 markets by 24h volume, ranked by the biggest holder consensus versus public price gap.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
+                <span>top 40 by 24h volume</span>
+                <span className="text-ink-3">/</span>
+                <span>ranked by holder-price gap</span>
+              </div>
             </div>
 
             <div className="grid gap-2 sm:flex sm:items-center">
@@ -103,7 +105,7 @@ export function MarketsDashboard() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search markets"
-                className="h-9 min-w-0 border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none placeholder:text-ink-3 focus:border-accent sm:w-[260px]"
+                className="h-9 min-w-0 rounded-[2px] border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent sm:w-[260px]"
               />
               <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 pb-1 sm:max-w-[520px] sm:pb-0">
                 {categories.map((item) => (
@@ -115,7 +117,7 @@ export function MarketsDashboard() {
             </div>
           </div>
 
-          <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="volume set" value={topVolumeMarkets.length > 0 ? String(topVolumeMarkets.length) : "--"} />
             <StatCard label="24h volume" value={topVolumeMarkets.length > 0 ? formatCurrency(totalVolume) : "--"} highlight />
             <StatCard label="tracked wallets" value={topVolumeMarkets.length > 0 ? String(trackedWallets.size) : "--"} />
@@ -149,10 +151,10 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
   const gapIsPositive = (gap.gap ?? 0) >= 0;
 
   return (
-    <article className="group relative overflow-hidden rounded-[3px] border border-ink-3 bg-paper-2 transition-colors duration-200 hover:border-accent active:translate-y-px">
+    <article className="surface-card group relative overflow-hidden rounded-[3px] transition-colors duration-200 active:translate-y-px">
       <Link href={href} className="block p-[15px]">
-        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3 pr-[72px]">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper text-[10px] text-accent">
+        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3 pr-[64px]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper text-[10px] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
             {String(rank).padStart(2, "0")}
           </div>
           <div className="min-w-0">
@@ -161,7 +163,7 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
                 {hasGap ? (gapIsPositive ? "holder overweight" : "holder underweight") : "holder signal"}
               </Pill>
             </div>
-            <h2 className="line-clamp-2 min-h-[40px] font-mono text-[13px] font-medium leading-snug text-ink">
+            <h2 className="line-clamp-2 min-h-[40px] font-mono text-[13px] font-medium leading-snug text-ink transition-colors group-hover:text-white">
               {market.question}
             </h2>
           </div>
@@ -169,14 +171,14 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
 
         <div className="mb-5 grid grid-cols-[1fr_112px] items-end gap-3">
           <div>
-            <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[#48b890]" : "text-[#d24d57]")}>
+            <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
               {formatSignedPercent(gap.gap)}
             </div>
             <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
               {gap.outcome} smart gap
             </div>
           </div>
-          <SparkLine up={gapIsPositive} width={104} height={42} className="justify-self-end opacity-90" />
+          <SparkLine up={gapIsPositive} width={104} height={42} className="justify-self-end opacity-95" />
         </div>
 
         <div className="mb-4 grid gap-[7px]">
@@ -205,7 +207,7 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
         />
       </div>
 
-      <div className="border-t border-ink-3 bg-paper px-[15px] py-2">
+      <div className="border-t border-ink-3 bg-paper/90 px-[15px] py-2">
         <div className="flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
           <span className="truncate">{market.parentTags[0] ?? "market"}</span>
           <span>{totalHolders} holders</span>
@@ -231,10 +233,7 @@ function SplitBar({
     <div className="grid grid-cols-[54px_1fr_38px] items-center gap-2">
       <span className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">{label}</span>
       <div className="h-[5px] bg-ink-bg-soft">
-        <div
-          className={clsx("h-full", tone === "green" ? "bg-[#3f9f7a]" : "bg-[#c84d5d]")}
-          style={{ width }}
-        />
+        <div className={clsx("h-full", tone === "green" ? "bg-[var(--positive)]" : "bg-[var(--negative)]")} style={{ width }} />
       </div>
       <span className="text-right font-mono text-[9px] text-ink-2">
         {typeof value === "number" ? `${Math.round(value * 100)}%` : "--"}
@@ -260,7 +259,7 @@ function FooterMetric({
 }) {
   return (
     <div className={align === "right" ? "text-right" : "text-left"}>
-      <div className={clsx("font-mono text-[12px]", tone === "green" ? "text-[#48b890]" : "text-[#d24d57]")}>
+      <div className={clsx("font-mono text-[12px]", tone === "green" ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
         {value}
       </div>
       <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
@@ -275,16 +274,16 @@ function EmptyOverviewSurface({ registryRefreshedAt }: { registryRefreshedAt: st
     <section className="border border-dashed border-ink-3 bg-paper-2 p-4 sm:p-6">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="min-h-[260px] border border-ink-3 bg-paper p-4">
+          <div key={index} className="surface-card min-h-[260px] p-4">
             <div className="mb-4 grid grid-cols-[34px_1fr] gap-3">
               <span className="h-8 w-8 border border-ink-3" />
               <div className="grid gap-2">
-                <span className="h-2 w-24 bg-ink-3" />
-                <span className="h-3 w-full bg-ink-3" />
-                <span className="h-3 w-4/5 bg-ink-3" />
+                <span className="skeleton-shimmer h-2 w-24 bg-ink-3" />
+                <span className="skeleton-shimmer h-3 w-full bg-ink-3" />
+                <span className="skeleton-shimmer h-3 w-4/5 bg-ink-3" />
               </div>
             </div>
-            <div className="mt-10 h-8 w-24 bg-ink-3" />
+            <div className="skeleton-shimmer mt-10 h-8 w-24 bg-ink-3" />
             <div className="mt-8 grid gap-2">
               <span className="h-[5px] w-full bg-ink-bg-soft" />
               <span className="h-[5px] w-3/4 bg-ink-bg-soft" />

@@ -45,13 +45,13 @@ export function WatchlistSurface() {
           </div>
           <Link
             href="/"
-            className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
+            className="inline-flex h-10 items-center justify-center rounded-[2px] border border-accent bg-[rgba(97,168,255,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent transition-colors hover:bg-[rgba(97,168,255,0.14)] active:translate-y-px"
           >
             browse overview
           </Link>
         </section>
 
-        <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="following" value={String(items.length)} highlight />
           <StatCard label="markets" value={String(markets.length)} />
           <StatCard label="wallets" value={String(wallets.length)} />
@@ -81,14 +81,14 @@ function WatchSection({
   onRemove: (type: WatchTargetType, id: string) => void;
 }) {
   return (
-    <section className="overflow-hidden border border-ink-3 bg-paper-2">
+    <section className="surface-card overflow-hidden rounded-[3px]">
       <div className="border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
         {title}
       </div>
       {items.length > 0 ? items.map((item) => (
         <article
           key={`${item.type}:${item.id}`}
-          className="grid grid-cols-[1fr_auto] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+          className="row-hover grid grid-cols-[1fr_auto] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
         >
           <Link href={item.href} className="min-w-0 hover:text-accent">
             <div className="truncate font-mono text-[13px] text-ink">{item.label}</div>
@@ -109,7 +109,7 @@ function WatchSection({
           <button
             type="button"
             onClick={() => onRemove(item.type, item.id)}
-            className="self-start border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 hover:border-accent hover:text-accent"
+            className="self-start rounded-[2px] border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3 transition-colors hover:border-accent hover:text-accent active:translate-y-px"
           >
             remove
           </button>
@@ -125,9 +125,9 @@ function WatchSection({
 
 function EmptyWatchlist() {
   return (
-    <section className="border border-dashed border-ink-3 bg-paper-2 p-4 sm:p-6">
+    <section className="surface-card rounded-[3px] border-dashed p-4 sm:p-6">
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-        <div className="grid content-center gap-4 border border-ink-3 bg-paper p-5">
+        <div className="surface-card grid content-center gap-4 rounded-[3px] bg-paper p-5">
           <Eyebrow>{"// START HERE"}</Eyebrow>
           <h2 className="font-mono text-[20px] uppercase tracking-[1px] text-ink">
             BUILD YOUR BOARD
@@ -138,7 +138,7 @@ function EmptyWatchlist() {
           <div>
             <Link
               href="/"
-              className="inline-flex h-10 items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
+              className="inline-flex h-10 items-center justify-center rounded-[2px] border border-accent bg-[rgba(97,168,255,0.08)] px-4 font-mono text-[10px] uppercase tracking-[1px] text-accent transition-colors hover:bg-[rgba(97,168,255,0.14)] active:translate-y-px"
             >
               browse overview
             </Link>
@@ -147,8 +147,8 @@ function EmptyWatchlist() {
         <div className="grid gap-2 border border-ink-3 bg-ink-bg-soft p-4">
           {Array.from({ length: 6 }).map((_, index) => (
             <div key={index} className="grid grid-cols-[1fr_58px] gap-3 border-b border-dashed border-ink-3 py-3 last:border-b-0">
-              <span className={index % 2 === 0 ? "h-2 w-4/5 bg-paper" : "h-2 w-3/5 bg-paper"} />
-              <span className="h-2 bg-paper" />
+              <span className={index % 2 === 0 ? "skeleton-shimmer h-2 w-4/5 bg-paper" : "skeleton-shimmer h-2 w-3/5 bg-paper"} />
+              <span className="skeleton-shimmer h-2 bg-paper" />
             </div>
           ))}
         </div>

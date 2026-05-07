@@ -56,14 +56,14 @@ export function LeadersSurface() {
           </div>
         </section>
 
-        <section className="mb-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="tracked wallets" value={hasData ? String(leaders.length) : "--"} />
           <StatCard label="open positions" value={hasData ? String(totalPositions) : "--"} highlight />
           <StatCard label="current exposure" value={hasData ? formatCurrency(totalVolume) : "--"} highlight />
           <StatCard label="top holder" value={hasData ? leaders[0].displayLabel : "--"} />
         </section>
 
-        <section className="overflow-x-auto border border-ink-3 bg-paper-2">
+        <section className="surface-card overflow-x-auto rounded-[3px]">
           <div className="min-w-[820px]">
             <TableHeader columns="42px 44px 1fr 128px 84px 100px 160px 86px">
               <span>#</span>
@@ -79,7 +79,7 @@ export function LeadersSurface() {
               <Link
                 key={leader.wallet}
                 href={`/wallets/${encodeURIComponent(leader.wallet)}`}
-                className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+                className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
                 style={{ gridTemplateColumns: "42px 44px 1fr 128px 84px 100px 160px 86px" }}
               >
                 <span className="font-mono text-[12px] text-ink-3">{String(leader.rank).padStart(2, "0")}</span>
@@ -116,7 +116,7 @@ export function FeedSurface() {
       <NavBar />
       <main className="grid min-h-[100dvh] lg:grid-cols-[1fr_320px]">
         <section className="border-r border-ink-3">
-          <header className="flex flex-col gap-4 border-b border-ink-3 bg-paper-2 px-4 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
+          <header className="flex flex-col gap-4 border-b border-ink-3 bg-paper-2/95 px-4 py-5 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="flex flex-col gap-[6px]">
               <Eyebrow>{"// FEED ▸ STREAM"}</Eyebrow>
               <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
@@ -141,7 +141,7 @@ export function FeedSurface() {
             {hasData ? feed.slice(0, 40).map((item) => (
               <article
                 key={item.id}
-                className="grid grid-cols-[52px_36px_1fr_auto] gap-3 border-b border-dashed border-ink-3 px-4 py-4 sm:px-6"
+                className="row-hover grid grid-cols-[52px_36px_1fr_auto] gap-3 border-b border-dashed border-ink-3 px-4 py-4 sm:px-6"
               >
                 <span className="font-mono text-[11px] text-ink-3">{relativeTime(item.time)}</span>
                 <span className="h-6 w-6 border border-ink-3" />
@@ -190,7 +190,7 @@ export function FeedSurface() {
               trending with holders
             </h2>
             {hasData ? trending.map((market) => (
-              <div key={market.conditionId} className="flex items-center justify-between gap-3 border border-ink-3 bg-paper px-3 py-3">
+              <div key={market.conditionId} className="surface-card flex items-center justify-between gap-3 rounded-[3px] px-3 py-3">
                 <span className="truncate font-mono text-[12px] text-ink">{market.question}</span>
                 <span className="shrink-0 font-mono text-[10px] text-accent">{formatCurrency(market.volume24h)}</span>
               </div>
@@ -247,12 +247,12 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
           </div>
         </section>
 
-        <section className="overflow-hidden border border-ink-3 bg-paper-2">
+        <section className="surface-card overflow-hidden rounded-[3px]">
           {hasData ? filteredWallets.map((wallet) => (
             <Link
               key={wallet.wallet}
               href={`/wallets/${encodeURIComponent(wallet.wallet)}`}
-              className="grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+              className="row-hover grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0"
             >
               <span className="h-6 w-6 border border-ink-3" />
               <div className="min-w-0">
@@ -271,7 +271,7 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
             <Link
               key={index}
               href={`/wallets/wallet-${index + 1}`}
-              className="grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+              className="row-hover grid grid-cols-[36px_1fr_auto] items-center gap-3 border-b border-dashed border-ink-3 px-4 py-3 last:border-b-0"
             >
               <span className="h-6 w-6 border border-ink-3" />
               <div className="grid gap-2">
@@ -337,13 +337,13 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
         </header>
 
         <section className="grid gap-4 lg:grid-cols-[260px_1fr]">
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatCard label="current exposure" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} highlight />
             <StatCard label="open markets" value={hasData ? String(detail?.activeMarkets ?? 0) : "--"} highlight />
             <StatCard label="signal type" value={hasData ? "current" : "--"} />
             <StatCard label="wallet source" value={hasData ? "holder" : "--"} />
           </div>
-          <div className="border border-ink-3 bg-paper-2 p-4">
+          <div className="surface-card rounded-[3px] p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
               exposure over time
             </div>
@@ -353,7 +353,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
           </div>
         </section>
 
-        <section className="overflow-x-auto border border-ink-3 bg-paper-2">
+        <section className="surface-card overflow-x-auto rounded-[3px]">
           <div className="min-w-[720px]">
             <TableHeader columns="1fr 72px 96px 128px 100px">
               <span>market</span>
@@ -365,7 +365,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
             {hasData ? positions.map((position) => (
               <div
                 key={position.conditionId}
-                className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+                className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
                 style={{ gridTemplateColumns: "1fr 72px 96px 128px 100px" }}
               >
                 <span className="truncate font-mono text-[12px] text-ink">{position.question}</span>
@@ -398,7 +398,7 @@ function LeaderSkeletonRow({ index }: { index: number }) {
   return (
     <Link
       href={`/wallets/wallet-${index + 1}`}
-      className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+      className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
       style={{ gridTemplateColumns: "42px 44px 1fr 128px 84px 100px 160px 86px" }}
     >
       <span className="font-mono text-[12px] text-ink-3">{String(index + 1).padStart(2, "0")}</span>
@@ -443,7 +443,7 @@ function SkeletonLine({
 }) {
   return (
     <span
-      className={accent ? "block bg-accent/70" : "block bg-ink-3"}
+      className={accent ? "skeleton-shimmer block bg-accent/70" : "skeleton-shimmer block bg-ink-3"}
       style={{ width, height }}
     />
   );

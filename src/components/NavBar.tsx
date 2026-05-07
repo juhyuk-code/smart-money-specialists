@@ -33,11 +33,11 @@ export function NavBar() {
   };
 
   return (
-    <aside className="border-b border-ink-3 bg-paper-2 lg:sticky lg:top-0 lg:h-[100dvh] lg:border-b-0 lg:border-r">
+    <aside className="z-20 min-w-0 overflow-hidden border-b border-ink-3 bg-paper-2/95 backdrop-blur lg:sticky lg:top-0 lg:h-[100dvh] lg:overflow-visible lg:border-b-0 lg:border-r">
       <div className="flex h-full flex-col">
         <header className="flex h-[50px] items-center justify-between gap-3 border-b border-ink-3 px-4">
           <Link href="/" className="flex items-center gap-2">
-            <span className="inline-block h-2 w-2 bg-accent" aria-hidden="true" />
+            <span className="inline-block h-2 w-2 bg-accent shadow-[0_0_12px_rgba(97,168,255,0.55)]" aria-hidden="true" />
             <span className="font-mono text-[15px] font-medium uppercase tracking-[2px] text-ink">
               PREF
             </span>
@@ -45,7 +45,7 @@ export function NavBar() {
           <LiveDot />
         </header>
 
-        <nav className="flex gap-2 overflow-x-auto px-2 py-2 lg:block lg:flex-1 lg:overflow-y-auto lg:px-2 lg:py-4">
+        <nav className="flex max-w-full gap-2 overflow-x-auto px-2 py-2 lg:block lg:flex-1 lg:overflow-y-auto lg:px-2 lg:py-4">
           <SidebarSection title="discover">
             {PRIMARY_ITEMS.map((item) => (
               <SidebarLink
@@ -73,12 +73,12 @@ export function NavBar() {
 
         <footer className="hidden border-t border-ink-3 px-3 py-3 lg:block">
           <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-2 rounded-[2px] border border-[rgba(45,212,191,0.22)] bg-[rgba(45,212,191,0.08)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-[#5eead4]">
-              <span className="h-2 w-2 bg-[#5eead4]" aria-hidden="true" />
+            <span className="inline-flex items-center gap-2 rounded-[2px] border border-[rgba(69,185,141,0.24)] bg-[rgba(69,185,141,0.08)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-[var(--positive)]">
+              <span className="h-2 w-2 bg-[var(--positive)]" aria-hidden="true" />
               Connected
             </span>
             <span className="font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
-              live
+              v0.1
             </span>
           </div>
         </footer>
@@ -95,11 +95,11 @@ function SidebarSection({
   children: ReactNode;
 }) {
   return (
-    <section className="min-w-[230px] lg:mb-5 lg:min-w-0">
+    <section className="shrink-0 lg:mb-5 lg:min-w-0">
       <div className="mb-2 hidden px-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-3 lg:block">
         {title}
       </div>
-      <div className="grid gap-1">{children}</div>
+      <div className="flex gap-1 lg:grid">{children}</div>
     </section>
   );
 }
@@ -119,15 +119,15 @@ function SidebarLink({
     <Link
       href={href}
       className={clsx(
-        "group grid min-w-[154px] grid-cols-[18px_1fr] items-start gap-2 rounded-[3px] border px-2 py-2 text-left transition-colors active:translate-y-px lg:min-w-0",
+        "group relative grid min-w-[132px] grid-cols-[18px_1fr] items-start gap-2 rounded-[3px] border px-2 py-2 text-left transition-colors active:translate-y-px lg:min-w-0",
         active
-          ? "border-ink-3 bg-ink-bg-soft text-ink"
+          ? "border-ink-3 bg-ink-bg-soft text-ink shadow-[inset_2px_0_0_var(--accent)]"
           : "border-transparent text-ink-2 hover:border-ink-3 hover:bg-ink-bg-soft hover:text-ink",
       )}
     >
       <span
         className={clsx(
-          "mt-[3px] h-3 w-3 border",
+          "mt-[3px] h-3 w-3 border transition-colors",
           active ? "border-accent bg-[rgba(96,165,250,0.25)]" : "border-ink-3",
         )}
         aria-hidden="true"

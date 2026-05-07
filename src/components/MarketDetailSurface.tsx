@@ -84,10 +84,10 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
             </h1>
           </section>
 
-          <section className="border border-ink-3 bg-paper-2 p-4">
+          <section className="surface-card rounded-[3px] p-4">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <div className={gapIsPositive ? "font-mono text-[28px] leading-none text-[#48b890]" : "font-mono text-[28px] leading-none text-[#d24d57]"}>
+                <div className={gapIsPositive ? "font-mono text-[28px] leading-none text-[var(--positive)]" : "font-mono text-[28px] leading-none text-[var(--negative)]"}>
                   {formatSignedPercent(gap.gap)}
                 </div>
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
@@ -110,7 +110,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
                   href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-[30px] items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-3 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
+                  className="inline-flex h-[30px] items-center justify-center rounded-[2px] border border-accent bg-[rgba(97,168,255,0.08)] px-3 font-mono text-[10px] uppercase tracking-[1px] text-accent transition-colors hover:bg-[rgba(97,168,255,0.14)] active:translate-y-px"
                 >
                   share
                 </a>
@@ -123,7 +123,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           </section>
         </header>
 
-        <section className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
           <StatCard label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
           <StatCard label="position size" value={formatCurrency(totalPositionSize)} highlight />
@@ -139,7 +139,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           </div>
 
           <aside className="grid content-start gap-4">
-            <section className="border border-ink-3 bg-paper-2 p-4">
+            <section className="surface-card rounded-[3px] p-4">
               <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
                 signal summary
               </div>
@@ -152,7 +152,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </div>
             </section>
 
-            <section className="border border-ink-3 bg-paper-2 p-4">
+            <section className="surface-card rounded-[3px] p-4">
               <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
                 movement surface
               </div>
@@ -169,38 +169,40 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
 
 function SignalGapPanel({ gaps }: { gaps: MarketGap[] }) {
   return (
-    <section className="border border-ink-3 bg-paper-2">
-      <div className="grid grid-cols-[92px_1fr_90px_90px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
-        <span>outcome</span>
-        <span>holder / market</span>
-        <span>gap</span>
-        <span>size</span>
-      </div>
-      {gaps.length > 0 ? gaps.map((gap) => (
-        <div
-          key={gap.outcome}
-          className="grid grid-cols-[92px_1fr_90px_90px] items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
-        >
-          <span className="font-mono text-[11px] uppercase text-accent">{gap.outcome}</span>
-          <div className="grid gap-[7px]">
-            <SplitBar label="holders" value={gap.smartShare} tone="green" />
-            <SplitBar label="market" value={gap.marketPrice} tone="red" />
-          </div>
-          <span className={(gap.gap ?? 0) >= 0 ? "font-mono text-[11px] text-[#48b890]" : "font-mono text-[11px] text-[#d24d57]"}>
-            {formatSignedPercent(gap.gap)}
-          </span>
-          <span className="font-mono text-[11px] text-ink-2">{formatCurrency(gap.holderSize)}</span>
+    <section className="surface-card overflow-x-auto rounded-[3px]">
+      <div className="min-w-[620px]">
+        <div className="grid grid-cols-[92px_1fr_90px_90px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+          <span>outcome</span>
+          <span>holder / market</span>
+          <span>gap</span>
+          <span>size</span>
         </div>
-      )) : (
-        <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
-      )}
+        {gaps.length > 0 ? gaps.map((gap) => (
+          <div
+            key={gap.outcome}
+            className="row-hover grid grid-cols-[92px_1fr_90px_90px] items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+          >
+            <span className="font-mono text-[11px] uppercase text-accent">{gap.outcome}</span>
+            <div className="grid gap-[7px]">
+              <SplitBar label="holders" value={gap.smartShare} tone="green" />
+              <SplitBar label="market" value={gap.marketPrice} tone="red" />
+            </div>
+            <span className={(gap.gap ?? 0) >= 0 ? "font-mono text-[11px] text-[var(--positive)]" : "font-mono text-[11px] text-[var(--negative)]"}>
+              {formatSignedPercent(gap.gap)}
+            </span>
+            <span className="font-mono text-[11px] text-ink-2">{formatCurrency(gap.holderSize)}</span>
+          </div>
+        )) : (
+          <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
+        )}
+      </div>
     </section>
   );
 }
 
 function OddsPanel({ prices }: { prices: Array<[string, number]> }) {
   return (
-    <section className="border border-ink-3 bg-paper-2 p-4">
+    <section className="surface-card rounded-[3px] p-4">
       <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
         public odds
       </div>
@@ -237,7 +239,7 @@ function SplitBar({
       <span className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">{label}</span>
       <div className="h-[5px] bg-ink-bg-soft">
         <div
-          className={tone === "green" ? "h-full bg-[#3f9f7a]" : "h-full bg-[#c84d5d]"}
+          className={tone === "green" ? "h-full bg-[var(--positive)]" : "h-full bg-[var(--negative)]"}
           style={{ width }}
         />
       </div>
@@ -250,26 +252,28 @@ function SplitBar({
 
 function OutcomePanel({ market }: { market: SmartMoneyMarket }) {
   return (
-    <section className="border border-ink-3 bg-paper-2">
-      <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
-        <span>outcome</span>
-        <span>holders</span>
-        <span>size</span>
-        <span>avg entry</span>
-      </div>
-      {market.outcomes.length > 0 ? market.outcomes.map((outcome) => (
-        <div
-          key={outcome.outcome}
-          className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
-        >
-          <span className="font-mono text-[11px] uppercase text-accent">{outcome.outcome}</span>
-          <span className="font-mono text-[11px] text-ink-2">{outcome.specialistCount}</span>
-          <span className="font-mono text-[11px] text-ink-2">{formatCurrency(outcome.totalCurrentSize)}</span>
-          <span className="font-mono text-[11px] text-ink-2">{formatEntry(outcome.weightedAverageEntry)}</span>
+    <section className="surface-card overflow-x-auto rounded-[3px]">
+      <div className="min-w-[620px]">
+        <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+          <span>outcome</span>
+          <span>holders</span>
+          <span>size</span>
+          <span>avg entry</span>
         </div>
-      )) : (
-        <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
-      )}
+        {market.outcomes.length > 0 ? market.outcomes.map((outcome) => (
+          <div
+            key={outcome.outcome}
+            className="row-hover grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+          >
+            <span className="font-mono text-[11px] uppercase text-accent">{outcome.outcome}</span>
+            <span className="font-mono text-[11px] text-ink-2">{outcome.specialistCount}</span>
+            <span className="font-mono text-[11px] text-ink-2">{formatCurrency(outcome.totalCurrentSize)}</span>
+            <span className="font-mono text-[11px] text-ink-2">{formatEntry(outcome.weightedAverageEntry)}</span>
+          </div>
+        )) : (
+          <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
+        )}
+      </div>
     </section>
   );
 }
@@ -286,7 +290,7 @@ function TopWalletsTable({
   }>;
 }) {
   return (
-    <section className="overflow-x-auto border border-ink-3 bg-paper-2">
+    <section className="surface-card overflow-x-auto rounded-[3px]">
       <div className="min-w-[700px]">
         <div className="grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
           <span>wallet</span>
@@ -300,7 +304,7 @@ function TopWalletsTable({
           <Link
             key={`${wallet.wallet}-${wallet.currentOutcome}`}
             href={`/wallets/${encodeURIComponent(wallet.wallet)}`}
-            className="grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+            className="row-hover grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
           >
             <span className="truncate font-mono text-[12px] text-ink">{wallet.displayLabel}</span>
             <span className="font-mono text-[10px] uppercase text-accent">{wallet.currentOutcome}</span>
@@ -319,7 +323,7 @@ function TopWalletsTable({
 
 function SideMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-2">
+    <div className="rounded-[2px] border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-2">
       <div className="mb-1 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
       <div className="truncate font-mono text-[12px] text-ink">{value}</div>
     </div>
@@ -338,13 +342,13 @@ function EmptyMarketDetail({ marketId }: { marketId: string }) {
           <span className="px-1">/</span>
           <span className="text-ink-2">{marketId}</span>
         </nav>
-        <section className="border border-dashed border-ink-3 bg-paper-2 p-4 sm:p-6">
+        <section className="surface-card rounded-[3px] border-dashed p-4 sm:p-6">
           <Eyebrow>{"// MARKET ▸ DETAIL"}</Eyebrow>
           <div className="mt-5 grid gap-3">
             <SkeletonLine width="72%" height="20px" />
             <SkeletonLine width="48%" height="20px" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="border border-ink-3 bg-paper p-3">
                 <SkeletonLine width="58%" />
@@ -379,7 +383,7 @@ function SkeletonLine({
 }) {
   return (
     <span
-      className={`${accent ? "bg-accent/70" : "bg-ink-3"} block ${className}`}
+      className={`${accent ? "bg-accent/70" : "bg-ink-3"} skeleton-shimmer block ${className}`}
       style={{ width, height }}
     />
   );
