@@ -3,9 +3,8 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
-import { Frame, Pill } from "@/components/ui";
+import { Frame } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
-import { FollowButton } from "@/components/FollowButton";
 import {
   fetchMarkets,
   formatCurrency,
@@ -113,11 +112,6 @@ function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
       <Link href={href} className="block min-w-0 p-4 sm:p-5">
         <div className="mb-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
           <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap gap-1">
-              <Pill tone="accent">smart money lead</Pill>
-              <Pill>{market.parentTags[0] ?? "market"}</Pill>
-              <Pill>{formatCurrency(market.volume24h)} 24h</Pill>
-            </div>
             <h2 className="max-w-[980px] font-mono text-[22px] font-medium leading-tight text-ink transition-colors group-hover:text-white sm:text-[30px]">
               {market.question}
             </h2>
@@ -138,26 +132,10 @@ function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
           gap={gap.gap}
           holderCount={totalHolders}
           holderSize={gap.holderSize}
+          volume24h={market.volume24h}
           signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
         />
       </Link>
-
-      <div className="absolute right-4 top-4">
-        <FollowButton
-          compact
-          target={{
-            type: "market",
-            id: market.marketSlug || market.conditionId,
-            label: market.question,
-            href,
-            subtitle: hasSmartMoney
-              ? `${gap.outcome} smart money ${formatPercent(gap.smartShare)}`
-              : "Smart money unavailable",
-            tags: market.parentTags,
-          }}
-          className="bg-paper-2"
-        />
-      </div>
     </article>
   );
 }
@@ -173,15 +151,13 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
   return (
     <article className="surface-card group relative overflow-hidden rounded-[3px] transition-colors duration-200 active:translate-y-px">
       <Link href={href} className="block p-[15px]">
-        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3 pr-[64px]">
+        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper text-[10px] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
             {String(rank).padStart(2, "0")}
           </div>
           <div className="min-w-0">
             <div className="mb-2 flex min-h-[20px] items-center gap-2 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
               <span>{market.parentTags[0] ?? "market"}</span>
-              <span className="text-ink-3">/</span>
-              <span>{formatCurrency(market.volume24h)} 24h</span>
             </div>
             <h2 className="line-clamp-2 min-h-[40px] font-mono text-[13px] font-medium leading-snug text-ink transition-colors group-hover:text-white">
               {market.question}
@@ -204,26 +180,10 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
           gap={gap.gap}
           holderCount={totalHolders}
           holderSize={gap.holderSize}
+          volume24h={market.volume24h}
           signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
         />
       </Link>
-
-      <div className="absolute right-3 top-3">
-        <FollowButton
-          compact
-          target={{
-            type: "market",
-            id: market.marketSlug || market.conditionId,
-            label: market.question,
-            href,
-            subtitle: hasSmartMoney
-              ? `${gap.outcome} smart money ${formatPercent(gap.smartShare)}`
-              : "Smart money unavailable",
-            tags: market.parentTags,
-          }}
-          className="bg-paper-2"
-        />
-      </div>
 
       <div className="h-[2px] bg-[var(--positive)] opacity-60" />
     </article>
@@ -235,6 +195,7 @@ function SmartMoneyContext({
   gap,
   holderCount,
   holderSize,
+  volume24h,
   signal,
   compact = false,
 }: {
@@ -242,6 +203,7 @@ function SmartMoneyContext({
   gap: number | null;
   holderCount: number;
   holderSize: number;
+  volume24h: number;
   signal: string;
   compact?: boolean;
 }) {
@@ -257,6 +219,7 @@ function SmartMoneyContext({
       <span>{signal}</span>
       <span>{holderCount} holders</span>
       <span className="normal-case tracking-normal">{formatCurrency(holderSize)} holder side</span>
+      <span>{formatCurrency(volume24h)} 24h volume</span>
     </div>
   );
 }
