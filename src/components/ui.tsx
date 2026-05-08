@@ -170,7 +170,7 @@ export function Frame({
     <div
       {...rest}
       className={clsx(
-        "frame-grid relative w-full min-h-[100dvh] overflow-x-hidden bg-paper text-ink font-mono lg:grid lg:grid-cols-[296px_minmax(0,1fr)]",
+        "frame-grid relative w-full min-h-[100dvh] overflow-x-hidden bg-paper text-ink font-mono lg:grid lg:grid-cols-[232px_minmax(0,1fr)]",
         rest.className,
       )}
     >

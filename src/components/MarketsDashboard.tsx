@@ -3,7 +3,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
-import { Eyebrow, Frame, Pill, SparkLine, StatCard } from "@/components/ui";
+import { Frame, Pill, SparkLine } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
 import { FollowButton } from "@/components/FollowButton";
 import {
@@ -25,7 +25,6 @@ const OVERVIEW_LIMIT = 40;
 export function MarketsDashboard() {
   const [markets, setMarkets] = useState<SmartMoneyMarket[]>([]);
   const [registryRefreshedAt, setRegistryRefreshedAt] = useState<string | null>(null);
-  const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
 
   useEffect(() => {
@@ -50,12 +49,6 @@ export function MarketsDashboard() {
       });
   }, []);
 
-  const categories = useMemo(() => {
-    const tags = new Set<string>();
-    markets.forEach((market) => market.parentTags.forEach((tag) => tags.add(tag)));
-    return ["all", ...Array.from(tags).sort()];
-  }, [markets]);
-
   const topVolumeMarkets = useMemo(() => {
     return [...markets].sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0)).slice(0, OVERVIEW_LIMIT);
   }, [markets]);
@@ -64,22 +57,14 @@ export function MarketsDashboard() {
     const normalizedQuery = query.trim().toLowerCase();
     return topVolumeMarkets
       .filter((market) => {
-        if (category !== "all" && !market.parentTags.includes(category)) return false;
         if (!normalizedQuery) return true;
         return `${market.question} ${market.marketSlug} ${market.parentTags.join(" ")}`
           .toLowerCase()
           .includes(normalizedQuery);
       })
       .sort((a, b) => gapMagnitude(marketDiscrepancy(b).gap) - gapMagnitude(marketDiscrepancy(a).gap));
-  }, [category, query, topVolumeMarkets]);
+  }, [query, topVolumeMarkets]);
 
-  const trackedWallets = new Set(
-    topVolumeMarkets.flatMap((market) =>
-      market.outcomes.flatMap((outcome) => outcome.topSpecialists.map((specialist) => specialist.wallet)),
-    ),
-  );
-  const totalVolume = topVolumeMarkets.reduce((sum, market) => sum + (market.volume24h ?? 0), 0);
-  const largestGap = visibleMarkets[0] ? marketDiscrepancy(visibleMarkets[0]) : null;
   const leadMarket = visibleMarkets[0] ?? null;
   const gridMarkets = leadMarket ? visibleMarkets.slice(1) : visibleMarkets;
 
@@ -89,46 +74,12 @@ export function MarketsDashboard() {
 
       <main className="min-w-0 px-3 py-4 sm:px-5 md:px-6 lg:px-5 xl:px-6">
         <section className="mb-5 border-b border-ink-3 pb-5">
-          <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="min-w-0">
-              <Eyebrow>{"// OVERVIEW ▸ MARKET GAPS"}</Eyebrow>
-              <h1 className="mt-2 font-mono text-[22px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[26px]">
-                OVERVIEW
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-                <span>top 40 by 24h volume</span>
-                <span className="text-ink-3">/</span>
-                <span>ranked by holder-price gap</span>
-              </div>
-            </div>
-
-            <div className="grid gap-2 sm:flex sm:items-center">
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search markets"
-                className="h-9 min-w-0 rounded-[2px] border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent sm:w-[260px]"
-              />
-              <div className="-mx-1 flex max-w-full gap-1 overflow-x-auto px-1 pb-1 sm:max-w-[520px] sm:pb-0">
-                {categories.map((item) => (
-                  <button key={item} type="button" onClick={() => setCategory(item)} className="shrink-0">
-                    <Pill tone={category === item ? "accent" : "ink"}>{item}</Pill>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="volume set" value={topVolumeMarkets.length > 0 ? String(topVolumeMarkets.length) : "--"} />
-            <StatCard label="24h volume" value={topVolumeMarkets.length > 0 ? formatCurrency(totalVolume) : "--"} highlight />
-            <StatCard label="tracked wallets" value={topVolumeMarkets.length > 0 ? String(trackedWallets.size) : "--"} />
-            <StatCard
-              label="largest gap"
-              value={largestGap ? formatSignedPercent(largestGap.gap) : "--"}
-              highlight
-            />
-          </section>
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search markets"
+            className="h-9 w-full min-w-0 rounded-[2px] border border-ink-3 bg-paper-2 px-3 font-mono text-[11px] uppercase tracking-[0.6px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent sm:w-[260px]"
+          />
         </section>
 
         {leadMarket ? (
