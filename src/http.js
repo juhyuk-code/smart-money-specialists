@@ -34,6 +34,18 @@ export function requireMethod(request, response, method) {
   return false;
 }
 
+export function requireJobSecret(request, response) {
+  const expected = process.env.JOB_SECRET;
+  if (!expected) return true;
+  const provided = request.headers?.["x-job-secret"] ?? request.query?.secret;
+  if (provided === expected) return true;
+  response.writeHead(401, {
+    "content-type": "application/json; charset=utf-8",
+  });
+  response.end(JSON.stringify({ error: "Unauthorized" }));
+  return false;
+}
+
 export const SHORT_CACHE_HEADERS = {
   "cache-control": "s-maxage=90, stale-while-revalidate=60",
 };

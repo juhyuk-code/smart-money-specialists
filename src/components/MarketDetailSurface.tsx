@@ -52,7 +52,10 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
       outcomeSize: outcome.totalCurrentSize,
     })),
   );
-  const topWallets = [...holders].sort((a, b) => b.currentSize - a.currentSize).slice(0, 8);
+  const topWallets = (market.primarySignalWallets?.length ? market.primarySignalWallets : holders)
+    .sort((a, b) => b.currentSize - a.currentSize)
+    .slice(0, 8);
+  const secondaryWallets = (market.secondarySignalWallets ?? []).slice(0, 8);
   const totalPositionSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
   const categories = market.parentTags.length > 0 ? market.parentTags : ["market"];
   const gap = marketDiscrepancy(market);
@@ -83,7 +86,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
                 <Pill key={tag}>{tag}</Pill>
               ))}
               <Pill tone={hasGap && Math.abs(gap.gap ?? 0) >= 0.2 ? "accent" : "ink"}>
-                {hasGap ? (gapIsPositive ? "holder overweight" : "holder underweight") : "holder signal"}
+                {hasGap ? (gapIsPositive ? "smart overweight" : "smart underweight") : "smart signal"}
               </Pill>
             </div>
             <Eyebrow>{"// MARKET ▸ DETAIL"}</Eyebrow>
@@ -91,7 +94,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               {market.question}
             </h1>
             <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <SideMetric label="holder lean" value={lead ? `${lead.outcome} / ${lead.specialistCount}` : "--"} />
+              <SideMetric label="smart lean" value={lead ? `${lead.outcome} / ${lead.specialistCount}` : "--"} />
               <SideMetric label="position size" value={formatCurrency(totalPositionSize)} />
               <SideMetric label="24h volume" value={formatCurrency(market.volume24h)} />
             </div>
@@ -130,14 +133,14 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </div>
             </div>
             <div className="grid gap-[7px]">
-              <SplitBar label="holders" value={gap.smartShare} tone="green" />
+              <SplitBar label="smart" value={gap.smartShare} tone="green" />
               <SplitBar label="market" value={gap.marketPrice} tone="red" />
             </div>
           </section>
         </header>
 
         <section className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
+          <StatCard label="smart lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
           <StatCard label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
           <StatCard label="position size" value={formatCurrency(totalPositionSize)} highlight />
           <StatCard label="24h volume" value={formatCurrency(market.volume24h)} />
@@ -148,7 +151,10 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
             <SignalGapPanel gaps={gaps} />
             <OddsPanel prices={prices} />
             <OutcomePanel market={market} />
-            <TopWalletsTable wallets={topWallets} />
+            <TopWalletsTable title="primary signal wallets" wallets={topWallets} />
+            {secondaryWallets.length > 0 ? (
+              <TopWalletsTable title="secondary anomaly wallets" wallets={secondaryWallets} />
+            ) : null}
           </div>
 
           <aside className="grid content-start gap-4">
@@ -158,8 +164,10 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </div>
               <div className="grid gap-3">
                 <SideMetric label="headline" value={market.headline || "Watching"} />
-                <SideMetric label="holders" value={String(specialistCount(market))} />
+                <SideMetric label="smart wallets" value={String(specialistCount(market))} />
+                <SideMetric label="secondary" value={String(market.secondarySignalWallets?.length ?? 0)} />
                 <SideMetric label="gap" value={formatSignedPercent(gap.gap)} />
+                <SideMetric label="quality" value={market.dataQuality?.status ?? market.status} />
                 <SideMetric label="market data" value={relativeTime(market.marketDataRefreshedAt)} />
                 <SideMetric label="registry" value={relativeTime(market.registryRefreshedAt)} />
               </div>
@@ -222,7 +230,7 @@ function SignalGapPanel({ gaps }: { gaps: MarketGap[] }) {
       <div className="min-w-[620px]">
         <div className="grid grid-cols-[92px_1fr_90px_90px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
           <span>outcome</span>
-          <span>holder / market</span>
+          <span>smart / market</span>
           <span>gap</span>
           <span>size</span>
         </div>
@@ -233,7 +241,7 @@ function SignalGapPanel({ gaps }: { gaps: MarketGap[] }) {
           >
             <span className="font-mono text-[11px] uppercase text-accent">{gap.outcome}</span>
             <div className="grid gap-[7px]">
-              <SplitBar label="holders" value={gap.smartShare} tone="green" />
+              <SplitBar label="smart" value={gap.smartShare} tone="green" />
               <SplitBar label="market" value={gap.marketPrice} tone="red" />
             </div>
             <span className={(gap.gap ?? 0) >= 0 ? "font-mono text-[11px] text-[var(--positive)]" : "font-mono text-[11px] text-[var(--negative)]"}>
@@ -305,7 +313,7 @@ function OutcomePanel({ market }: { market: SmartMoneyMarket }) {
       <div className="min-w-[620px]">
         <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
           <span>outcome</span>
-          <span>holders</span>
+          <span>smart wallets</span>
           <span>size</span>
           <span>avg entry</span>
         </div>
@@ -328,11 +336,14 @@ function OutcomePanel({ market }: { market: SmartMoneyMarket }) {
 }
 
 function TopWalletsTable({
+  title,
   wallets,
 }: {
+  title: string;
   wallets: Array<{
     wallet: string;
     displayLabel: string;
+    label?: string;
     currentOutcome: string;
     currentSize: number;
     averageEntry: number | null;
@@ -341,6 +352,9 @@ function TopWalletsTable({
   return (
     <section className="surface-card overflow-x-auto rounded-[3px]">
       <div className="min-w-[700px]">
+        <div className="border-b border-ink-3 bg-paper/70 px-3 py-2 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
+          {title}
+        </div>
         <div className="grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
           <span>wallet</span>
           <span>side</span>
@@ -359,7 +373,7 @@ function TopWalletsTable({
             <span className="font-mono text-[10px] uppercase text-accent">{wallet.currentOutcome}</span>
             <span className="font-mono text-[10px] text-ink-2">{formatCurrency(wallet.currentSize)}</span>
             <span className="font-mono text-[10px] text-ink-2">{formatEntry(wallet.averageEntry)}</span>
-            <span className="font-mono text-[10px] text-ink-2">holder</span>
+            <span className="truncate font-mono text-[10px] text-ink-2">{wallet.label ?? "holder"}</span>
             <span className="font-mono text-[10px] uppercase text-ink-2">{wallet.currentOutcome}</span>
           </Link>
         )) : (

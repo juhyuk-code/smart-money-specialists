@@ -3,12 +3,17 @@ export type Specialist = {
   displayLabel: string;
   knownHandle?: string;
   category?: string;
+  label?: string;
+  labelWeight?: number;
   currentOutcome: string;
   currentSize: number;
   averageEntry: number | null;
   realizedPnl: number | null;
   roi: number | null;
   closedMarkets: number | null;
+  resolvedNotional?: number | null;
+  winRate?: number | null;
+  topGainConcentration?: number | null;
   last90dPnl: number | null;
 };
 
@@ -16,9 +21,30 @@ export type MarketOutcome = {
   outcome: string;
   specialistCount: number;
   totalCurrentSize: number;
+  weightedSmartSize?: number;
   weightedAverageEntry: number | null;
   averageEntryStatus?: string;
   topSpecialists: Specialist[];
+};
+
+export type SmartGapRow = {
+  outcome: string;
+  smartShare: number;
+  marketPrice: number | null;
+  gap: number | null;
+  weightedSmartSize?: number;
+  holderSize: number;
+  holderCount: number;
+};
+
+export type DataQuality = {
+  status: string;
+  states: string[];
+  primaryWalletCount?: number;
+  secondaryWalletCount?: number;
+  relevantRegistryRecords?: number;
+  holderSnapshotAt?: string | null;
+  registryRefreshedAt?: string | null;
 };
 
 export type SmartMoneyMarket = {
@@ -32,7 +58,13 @@ export type SmartMoneyMarket = {
   status: string;
   registryRefreshedAt: string | null;
   marketDataRefreshedAt: string | null;
+  holderSnapshotAt?: string | null;
   headline: string;
+  smartGap?: SmartGapRow[];
+  labelBreakdown?: Record<string, number>;
+  primarySignalWallets?: Specialist[];
+  secondarySignalWallets?: Specialist[];
+  dataQuality?: DataQuality;
 };
 
 export type MarketsPayload = {
@@ -287,6 +319,19 @@ export function marketDiscrepancy(market: SmartMoneyMarket): MarketGap {
 }
 
 export function marketOutcomeGaps(market: SmartMoneyMarket): MarketGap[] {
+  if (Array.isArray(market.smartGap) && market.smartGap.length > 0) {
+    return market.smartGap
+      .map((row) => ({
+        outcome: row.outcome,
+        smartShare: row.smartShare,
+        marketPrice: row.marketPrice,
+        gap: row.gap,
+        holderSize: row.holderSize,
+        holderCount: row.holderCount,
+      }))
+      .sort((a, b) => gapMagnitude(b.gap) - gapMagnitude(a.gap));
+  }
+
   const totalSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
   return market.outcomes
     .map((outcome) => {

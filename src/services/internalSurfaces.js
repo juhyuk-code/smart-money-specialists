@@ -1,9 +1,8 @@
+import { getDataSource } from "../appContext.js";
 import { readMarketSnapshot } from "./snapshotStore.js";
 
-const DEFAULT_SNAPSHOT_KEY = "default:preference";
-
 export async function readDefaultMarketSnapshot() {
-  const snapshot = await readMarketSnapshot(DEFAULT_SNAPSHOT_KEY);
+  const snapshot = await readMarketSnapshot(`default:${getDataSource()}`);
   if (!snapshot?.value?.markets || !Array.isArray(snapshot.value.markets)) {
     return {
       snapshotAvailable: false,
