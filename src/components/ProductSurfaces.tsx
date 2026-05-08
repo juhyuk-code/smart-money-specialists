@@ -235,7 +235,7 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
 
   return (
     <Frame>
-      <NavBar activeWalletCategory={categoryLabel === "all" ? null : categoryLabel} />
+      <NavBar />
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-5 flex flex-col gap-4 border-b border-dashed border-ink-3 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">

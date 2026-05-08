@@ -14,33 +14,15 @@ const PRIMARY_ITEMS = [
 const WALLET_ITEMS = [
   { label: "All Wallets", href: "/wallets", helper: "Every tracked holder" },
   { label: "Leaders", href: "/leaders", helper: "Largest current exposure" },
-  { label: "Politics", href: "/wallets?category=politics", helper: "Politics holders" },
-  { label: "Sports", href: "/wallets?category=sports", helper: "Sports holders" },
-  { label: "Crypto", href: "/wallets?category=crypto", helper: "Crypto holders" },
-  { label: "Macro", href: "/wallets?category=macro", helper: "Rates and economy" },
-  { label: "Weather", href: "/wallets?category=weather", helper: "Weather markets" },
-  { label: "Sci-Tech", href: "/wallets?category=sci-tech", helper: "Science and tech" },
 ];
 
-type NavBarProps = {
-  activeWalletCategory?: string | null;
-};
-
-function normalizeWalletCategory(category?: string | null) {
-  const normalized = category?.trim().toLowerCase();
-  return normalized && normalized !== "all" ? normalized : null;
-}
-
-export function NavBar({ activeWalletCategory }: NavBarProps = {}) {
+export function NavBar() {
   const pathname = usePathname();
-  const activeCategory = normalizeWalletCategory(activeWalletCategory);
 
   const isActive = (href: string) => {
     const baseHref = href.split("?")[0];
-    const hrefCategory = new URLSearchParams(href.split("?")[1] ?? "").get("category");
     if (baseHref === "/wallets") {
-      if (pathname !== "/wallets") return false;
-      return hrefCategory ? activeCategory === hrefCategory : !activeCategory;
+      return pathname === "/wallets";
     }
     if (baseHref === "/") return pathname === "/";
     return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
@@ -123,7 +105,7 @@ function SidebarLink({
       className={clsx(
         "group relative grid min-w-[132px] grid-cols-[18px_1fr] items-start gap-2 rounded-[3px] border px-2 py-2 text-left transition-colors focus:outline-none active:translate-y-px lg:min-w-0",
         active
-          ? "border-ink-3 bg-ink-bg-soft text-ink shadow-[inset_2px_0_0_var(--accent)]"
+          ? "border-accent bg-[rgba(97,168,255,0.08)] text-accent shadow-[inset_2px_0_0_var(--accent)]"
           : "border-transparent text-ink-2 hover:text-ink focus-visible:border-ink-3 focus-visible:outline-none",
       )}
     >
