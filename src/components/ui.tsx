@@ -13,10 +13,10 @@ export function Pill({
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 px-2 py-[2px] rounded-[2px] text-[10px] uppercase tracking-[0.6px] font-mono border",
+        "inline-flex min-h-[22px] items-center gap-1 rounded-[2px] border px-2 py-[2px] font-mono text-[10px] uppercase tracking-[0.6px]",
         tone === "accent"
-          ? "text-accent border-accent bg-[rgba(96,165,250,0.08)]"
-          : "text-ink-2 border-ink-3 bg-transparent",
+          ? "border-accent bg-[rgba(97,168,255,0.09)] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+          : "border-ink-3 bg-[rgba(255,255,255,0.012)] text-ink-2",
         className,
       )}
     >
@@ -51,7 +51,7 @@ export function Note({
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <div className="text-accent text-[10px] uppercase tracking-[2px] font-mono">
+    <div className="font-mono text-[10px] uppercase tracking-[2px] text-accent">
       {children}
     </div>
   );
@@ -109,9 +109,14 @@ export function SparkLine({
       className={clsx("block", className)}
     >
       <polyline
+        points={`${points} ${width - 2},${height - 2} 2,${height - 2}`}
+        fill={up ? "rgba(69,185,141,0.12)" : "rgba(212,80,93,0.10)"}
+        stroke="none"
+      />
+      <polyline
         points={points}
         fill="none"
-        stroke={up ? "var(--accent)" : "var(--ink-2)"}
+        stroke={up ? "var(--positive)" : "var(--negative)"}
         strokeWidth="1.2"
         strokeLinecap="square"
         strokeLinejoin="miter"
@@ -141,16 +146,15 @@ export function StatCard({
   highlight?: boolean;
 }) {
   return (
-    <div className="min-w-0 flex-1 border border-ink-3 rounded-[2px] px-3 py-3 bg-paper-2 sm:px-[14px]">
-      <div className="text-[9px] uppercase tracking-[1.2px] text-ink-3 font-mono mb-[6px]">
+    <div className="surface-card min-w-0 flex-1 rounded-[2px] px-3 py-3 transition-colors sm:px-[14px]">
+      <div className="mb-[7px] font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
         {label}
       </div>
       <div
         className={clsx(
-          "truncate text-[20px] font-medium font-mono leading-[1.2] sm:text-[22px]",
+          "truncate font-mono text-[20px] font-medium leading-[1.2] sm:text-[22px]",
           highlight ? "text-accent" : "text-ink",
         )}
-        style={{ letterSpacing: "-0.01em" }}
       >
         {value}
       </div>
@@ -166,7 +170,7 @@ export function Frame({
     <div
       {...rest}
       className={clsx(
-        "frame-grid w-full min-h-[100dvh] bg-paper text-ink font-mono lg:grid lg:grid-cols-[292px_minmax(0,1fr)]",
+        "frame-grid relative w-full min-h-[100dvh] overflow-x-hidden bg-paper text-ink font-mono lg:grid lg:grid-cols-[232px_minmax(0,1fr)]",
         rest.className,
       )}
     >

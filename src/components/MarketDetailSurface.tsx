@@ -24,9 +24,11 @@ import {
 
 export function MarketDetailSurface({ marketId }: { marketId: string }) {
   const [market, setMarket] = useState<SmartMoneyMarket | null>(null);
+  const [snapshotMarkets, setSnapshotMarkets] = useState<SmartMoneyMarket[]>([]);
 
   useEffect(() => {
     const snapshot = readSnapshot();
+    if (snapshot) setSnapshotMarkets(snapshot.markets);
     const localMarket = snapshot?.markets.find((item) => {
       return item.marketSlug === marketId || item.conditionId === marketId;
     });
@@ -57,6 +59,11 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
   const gaps = marketOutcomeGaps(market);
   const hasGap = typeof gap.gap === "number";
   const gapIsPositive = (gap.gap ?? 0) >= 0;
+  const relatedMarkets = snapshotMarkets
+    .filter((item) => item.conditionId !== market.conditionId)
+    .filter((item) => item.parentTags.some((tag) => categories.includes(tag)))
+    .sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0))
+    .slice(0, 4);
 
   return (
     <Frame>
@@ -68,8 +75,9 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           <span className="text-ink-2">{market.marketSlug}</span>
         </nav>
 
-        <header className="mt-4 grid gap-4 border-b border-ink-3 pb-5 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-end">
-          <section className="min-w-0">
+        <header className="surface-card relative mt-4 overflow-hidden rounded-[3px] xl:grid xl:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-accent via-[var(--positive)] to-[var(--negative)] opacity-80" />
+          <section className="min-w-0 p-4 sm:p-5">
             <div className="mb-3 flex flex-wrap gap-1">
               {categories.slice(0, 4).map((tag) => (
                 <Pill key={tag}>{tag}</Pill>
@@ -79,15 +87,20 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </Pill>
             </div>
             <Eyebrow>{"// MARKET ▸ DETAIL"}</Eyebrow>
-            <h1 className="mt-2 max-w-[1040px] font-mono text-[24px] font-medium leading-tight text-ink sm:text-[30px]">
+            <h1 className="mt-3 max-w-[1040px] font-mono text-[24px] font-medium leading-tight text-ink sm:text-[34px]">
               {market.question}
             </h1>
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              <SideMetric label="holder lean" value={lead ? `${lead.outcome} / ${lead.specialistCount}` : "--"} />
+              <SideMetric label="position size" value={formatCurrency(totalPositionSize)} />
+              <SideMetric label="24h volume" value={formatCurrency(market.volume24h)} />
+            </div>
           </section>
 
-          <section className="border border-ink-3 bg-paper-2 p-4">
+          <section className="border-t border-ink-3 bg-paper/70 p-4 xl:border-l xl:border-t-0">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
-                <div className={gapIsPositive ? "font-mono text-[28px] leading-none text-[#48b890]" : "font-mono text-[28px] leading-none text-[#d24d57]"}>
+                <div className={gapIsPositive ? "font-mono text-[28px] leading-none text-[var(--positive)]" : "font-mono text-[28px] leading-none text-[var(--negative)]"}>
                   {formatSignedPercent(gap.gap)}
                 </div>
                 <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
@@ -110,7 +123,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
                   href={`/api/smart-money/share/${encodeURIComponent(market.conditionId)}.png`}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex h-[30px] items-center justify-center border border-accent bg-[rgba(96,165,250,0.08)] px-3 font-mono text-[10px] uppercase tracking-[1px] text-accent hover:bg-[rgba(96,165,250,0.14)]"
+                  className="inline-flex h-[30px] items-center justify-center rounded-[2px] border border-accent bg-[rgba(97,168,255,0.08)] px-3 font-mono text-[10px] uppercase tracking-[1px] text-accent transition-colors hover:bg-[rgba(97,168,255,0.14)] active:translate-y-px"
                 >
                   share
                 </a>
@@ -123,7 +136,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           </section>
         </header>
 
-        <section className="mt-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <section className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="holder lean" value={lead ? `${lead.outcome} · ${lead.specialistCount}` : "--"} highlight />
           <StatCard label="avg entry" value={formatEntry(lead?.weightedAverageEntry)} />
           <StatCard label="position size" value={formatCurrency(totalPositionSize)} highlight />
@@ -139,7 +152,7 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
           </div>
 
           <aside className="grid content-start gap-4">
-            <section className="border border-ink-3 bg-paper-2 p-4">
+            <section className="surface-card rounded-[3px] p-4">
               <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
                 signal summary
               </div>
@@ -152,14 +165,16 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
               </div>
             </section>
 
-            <section className="border border-ink-3 bg-paper-2 p-4">
+            <section className="surface-card rounded-[3px] p-4">
               <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
-                movement surface
+                position curve
               </div>
               <div className="flex h-[150px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft">
                 <SparkLine up={(lead?.totalCurrentSize ?? 0) >= 0} width={220} height={72} />
               </div>
             </section>
+
+            <RelatedMarketsPanel markets={relatedMarkets} />
           </aside>
         </section>
       </main>
@@ -167,40 +182,76 @@ export function MarketDetailSurface({ marketId }: { marketId: string }) {
   );
 }
 
+function RelatedMarketsPanel({ markets }: { markets: SmartMoneyMarket[] }) {
+  return (
+    <section className="surface-card rounded-[3px] p-4">
+      <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
+        nearby markets
+      </div>
+      <div className="grid gap-2">
+        {markets.length > 0 ? markets.map((market) => {
+          const gap = marketDiscrepancy(market);
+          return (
+            <Link
+              key={market.conditionId}
+              href={marketDetailPath(market)}
+              className="row-hover grid gap-2 rounded-[2px] border border-ink-3 bg-ink-bg-soft px-3 py-2"
+            >
+              <div className="line-clamp-2 font-mono text-[11px] leading-snug text-ink">{market.question}</div>
+              <div className="flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
+                <span>{market.parentTags[0] ?? "market"}</span>
+                <span className={(gap.gap ?? 0) >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]"}>
+                  {formatSignedPercent(gap.gap)}
+                </span>
+              </div>
+            </Link>
+          );
+        }) : (
+          <div className="rounded-[2px] border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-6 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
+            watching
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function SignalGapPanel({ gaps }: { gaps: MarketGap[] }) {
   return (
-    <section className="border border-ink-3 bg-paper-2">
-      <div className="grid grid-cols-[92px_1fr_90px_90px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
-        <span>outcome</span>
-        <span>holder / market</span>
-        <span>gap</span>
-        <span>size</span>
-      </div>
-      {gaps.length > 0 ? gaps.map((gap) => (
-        <div
-          key={gap.outcome}
-          className="grid grid-cols-[92px_1fr_90px_90px] items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
-        >
-          <span className="font-mono text-[11px] uppercase text-accent">{gap.outcome}</span>
-          <div className="grid gap-[7px]">
-            <SplitBar label="holders" value={gap.smartShare} tone="green" />
-            <SplitBar label="market" value={gap.marketPrice} tone="red" />
-          </div>
-          <span className={(gap.gap ?? 0) >= 0 ? "font-mono text-[11px] text-[#48b890]" : "font-mono text-[11px] text-[#d24d57]"}>
-            {formatSignedPercent(gap.gap)}
-          </span>
-          <span className="font-mono text-[11px] text-ink-2">{formatCurrency(gap.holderSize)}</span>
+    <section className="surface-card overflow-x-auto rounded-[3px]">
+      <div className="min-w-[620px]">
+        <div className="grid grid-cols-[92px_1fr_90px_90px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+          <span>outcome</span>
+          <span>holder / market</span>
+          <span>gap</span>
+          <span>size</span>
         </div>
-      )) : (
-        <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
-      )}
+        {gaps.length > 0 ? gaps.map((gap) => (
+          <div
+            key={gap.outcome}
+            className="row-hover grid grid-cols-[92px_1fr_90px_90px] items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+          >
+            <span className="font-mono text-[11px] uppercase text-accent">{gap.outcome}</span>
+            <div className="grid gap-[7px]">
+              <SplitBar label="holders" value={gap.smartShare} tone="green" />
+              <SplitBar label="market" value={gap.marketPrice} tone="red" />
+            </div>
+            <span className={(gap.gap ?? 0) >= 0 ? "font-mono text-[11px] text-[var(--positive)]" : "font-mono text-[11px] text-[var(--negative)]"}>
+              {formatSignedPercent(gap.gap)}
+            </span>
+            <span className="font-mono text-[11px] text-ink-2">{formatCurrency(gap.holderSize)}</span>
+          </div>
+        )) : (
+          <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
+        )}
+      </div>
     </section>
   );
 }
 
 function OddsPanel({ prices }: { prices: Array<[string, number]> }) {
   return (
-    <section className="border border-ink-3 bg-paper-2 p-4">
+    <section className="surface-card rounded-[3px] p-4">
       <div className="mb-3 font-mono text-[9px] uppercase tracking-[1.2px] text-ink-3">
         public odds
       </div>
@@ -237,7 +288,7 @@ function SplitBar({
       <span className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">{label}</span>
       <div className="h-[5px] bg-ink-bg-soft">
         <div
-          className={tone === "green" ? "h-full bg-[#3f9f7a]" : "h-full bg-[#c84d5d]"}
+          className={tone === "green" ? "h-full bg-[var(--positive)]" : "h-full bg-[var(--negative)]"}
           style={{ width }}
         />
       </div>
@@ -250,26 +301,28 @@ function SplitBar({
 
 function OutcomePanel({ market }: { market: SmartMoneyMarket }) {
   return (
-    <section className="border border-ink-3 bg-paper-2">
-      <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
-        <span>outcome</span>
-        <span>holders</span>
-        <span>size</span>
-        <span>avg entry</span>
-      </div>
-      {market.outcomes.length > 0 ? market.outcomes.map((outcome) => (
-        <div
-          key={outcome.outcome}
-          className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
-        >
-          <span className="font-mono text-[11px] uppercase text-accent">{outcome.outcome}</span>
-          <span className="font-mono text-[11px] text-ink-2">{outcome.specialistCount}</span>
-          <span className="font-mono text-[11px] text-ink-2">{formatCurrency(outcome.totalCurrentSize)}</span>
-          <span className="font-mono text-[11px] text-ink-2">{formatEntry(outcome.weightedAverageEntry)}</span>
+    <section className="surface-card overflow-x-auto rounded-[3px]">
+      <div className="min-w-[620px]">
+        <div className="grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+          <span>outcome</span>
+          <span>holders</span>
+          <span>size</span>
+          <span>avg entry</span>
         </div>
-      )) : (
-        <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
-      )}
+        {market.outcomes.length > 0 ? market.outcomes.map((outcome) => (
+          <div
+            key={outcome.outcome}
+            className="row-hover grid grid-cols-[92px_1fr_120px_100px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+          >
+            <span className="font-mono text-[11px] uppercase text-accent">{outcome.outcome}</span>
+            <span className="font-mono text-[11px] text-ink-2">{outcome.specialistCount}</span>
+            <span className="font-mono text-[11px] text-ink-2">{formatCurrency(outcome.totalCurrentSize)}</span>
+            <span className="font-mono text-[11px] text-ink-2">{formatEntry(outcome.weightedAverageEntry)}</span>
+          </div>
+        )) : (
+          <div className="px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3">watching</div>
+        )}
+      </div>
     </section>
   );
 }
@@ -286,7 +339,7 @@ function TopWalletsTable({
   }>;
 }) {
   return (
-    <section className="overflow-x-auto border border-ink-3 bg-paper-2">
+    <section className="surface-card overflow-x-auto rounded-[3px]">
       <div className="min-w-[700px]">
         <div className="grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-ink-3 bg-ink-bg-soft px-3 py-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
           <span>wallet</span>
@@ -300,7 +353,7 @@ function TopWalletsTable({
           <Link
             key={`${wallet.wallet}-${wallet.currentOutcome}`}
             href={`/wallets/${encodeURIComponent(wallet.wallet)}`}
-            className="grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0 hover:bg-ink-bg-soft"
+            className="row-hover grid grid-cols-[1fr_86px_110px_90px_90px_80px] gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
           >
             <span className="truncate font-mono text-[12px] text-ink">{wallet.displayLabel}</span>
             <span className="font-mono text-[10px] uppercase text-accent">{wallet.currentOutcome}</span>
@@ -319,7 +372,7 @@ function TopWalletsTable({
 
 function SideMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-2">
+    <div className="rounded-[2px] border border-dashed border-ink-3 bg-ink-bg-soft px-3 py-2">
       <div className="mb-1 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
       <div className="truncate font-mono text-[12px] text-ink">{value}</div>
     </div>
@@ -338,13 +391,13 @@ function EmptyMarketDetail({ marketId }: { marketId: string }) {
           <span className="px-1">/</span>
           <span className="text-ink-2">{marketId}</span>
         </nav>
-        <section className="border border-dashed border-ink-3 bg-paper-2 p-4 sm:p-6">
+        <section className="surface-card rounded-[3px] border-dashed p-4 sm:p-6">
           <Eyebrow>{"// MARKET ▸ DETAIL"}</Eyebrow>
           <div className="mt-5 grid gap-3">
             <SkeletonLine width="72%" height="20px" />
             <SkeletonLine width="48%" height="20px" />
           </div>
-          <div className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="border border-ink-3 bg-paper p-3">
                 <SkeletonLine width="58%" />
@@ -379,7 +432,7 @@ function SkeletonLine({
 }) {
   return (
     <span
-      className={`${accent ? "bg-accent/70" : "bg-ink-3"} block ${className}`}
+      className={`${accent ? "bg-accent/70" : "bg-ink-3"} skeleton-shimmer block ${className}`}
       style={{ width, height }}
     />
   );
