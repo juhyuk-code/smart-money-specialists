@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
 import clsx from "clsx";
 
 const PRIMARY_ITEMS = [
@@ -25,11 +24,8 @@ const WALLET_ITEMS = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-
-  useEffect(() => {
-    setActiveCategory(new URLSearchParams(window.location.search).get("category"));
-  }, [pathname]);
+  const searchParams = useSearchParams();
+  const activeCategory = searchParams.get("category");
 
   const isActive = (href: string) => {
     const baseHref = href.split("?")[0];
