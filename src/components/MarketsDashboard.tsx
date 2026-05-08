@@ -9,7 +9,7 @@ import { FollowButton } from "@/components/FollowButton";
 import {
   fetchMarkets,
   formatCurrency,
-  formatEntry,
+  formatPercent,
   formatSignedPercent,
   marketDiscrepancy,
   marketDetailPath,
@@ -105,65 +105,58 @@ function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
   const gapIsPositive = (gap.gap ?? 0) >= 0;
   const totalHolders = specialistCount(market);
   const hasGap = typeof gap.gap === "number";
+  const hasSmartMoney = totalHolders > 0;
 
   return (
     <article className="surface-card group relative overflow-hidden rounded-[3px]">
-      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-accent via-[var(--positive)] to-[var(--negative)] opacity-80" />
-      <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Link href={href} className="block min-w-0 p-4 sm:p-5">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="mb-3 flex flex-wrap gap-1">
-                <Pill tone="accent">top discrepancy</Pill>
-                <Pill>{market.parentTags[0] ?? "market"}</Pill>
-                <Pill>{formatCurrency(market.volume24h)} 24h</Pill>
-              </div>
-              <h2 className="max-w-[980px] font-mono text-[22px] font-medium leading-tight text-ink transition-colors group-hover:text-white sm:text-[30px]">
-                {market.question}
-              </h2>
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-[var(--positive)] opacity-85" />
+      <Link href={href} className="block min-w-0 p-4 sm:p-5">
+        <div className="mb-7 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap gap-1">
+              <Pill tone="accent">smart money lead</Pill>
+              <Pill>{market.parentTags[0] ?? "market"}</Pill>
+              <Pill>{formatCurrency(market.volume24h)} 24h</Pill>
             </div>
-            <div className="shrink-0 text-left sm:text-right">
-              <div className={clsx("font-mono text-[38px] leading-none sm:text-[46px]", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
-                {formatSignedPercent(gap.gap)}
-              </div>
-              <div className="mt-2 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-                {gap.outcome} smart gap
-              </div>
-            </div>
+            <h2 className="max-w-[980px] font-mono text-[22px] font-medium leading-tight text-ink transition-colors group-hover:text-white sm:text-[30px]">
+              {market.question}
+            </h2>
           </div>
 
-          <div className="grid gap-3">
-            <DiscrepancyTrack label="holders" value={gap.smartShare} tone="green" />
-            <DiscrepancyTrack label="market" value={gap.marketPrice} tone="red" />
-          </div>
-        </Link>
-
-        <aside className="grid border-t border-ink-3 bg-paper/70 xl:border-l xl:border-t-0">
-          <div className="grid grid-cols-2 border-b border-ink-3">
-            <FeaturedMetric label="holders" value={String(totalHolders)} />
-            <FeaturedMetric label="holder size" value={formatCurrency(gap.holderSize)} tone="green" />
-          </div>
-          <div className="grid grid-cols-2 border-b border-ink-3">
-            <FeaturedMetric label="market price" value={formatEntry(gap.marketPrice)} tone="red" />
-            <FeaturedMetric label="signal" value={hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"} />
-          </div>
-          <div className="flex items-center justify-between gap-3 p-4">
-            <div className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-              ranked by gap magnitude
+          <div className="min-w-0 text-left lg:text-right">
+            <div className="font-mono text-[54px] font-medium leading-none text-[var(--positive)] sm:text-[68px]">
+              {formatSmartMoneyOdds(gap.smartShare, hasSmartMoney)}
             </div>
-            <FollowButton
-              compact
-              target={{
-                type: "market",
-                id: market.marketSlug || market.conditionId,
-                label: market.question,
-                href,
-                subtitle: `${gap.outcome} gap ${formatSignedPercent(gap.gap)}`,
-                tags: market.parentTags,
-              }}
-            />
+            <div className="mt-2 font-mono text-[11px] uppercase tracking-[1px] text-ink">
+              {smartMoneyLabel(gap.outcome, hasSmartMoney)}
+            </div>
           </div>
-        </aside>
+        </div>
+
+        <SmartMoneyContext
+          marketPrice={gap.marketPrice}
+          gap={gap.gap}
+          holderCount={totalHolders}
+          holderSize={gap.holderSize}
+          signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
+        />
+      </Link>
+
+      <div className="absolute right-4 top-4">
+        <FollowButton
+          compact
+          target={{
+            type: "market",
+            id: market.marketSlug || market.conditionId,
+            label: market.question,
+            href,
+            subtitle: hasSmartMoney
+              ? `${gap.outcome} smart money ${formatPercent(gap.smartShare)}`
+              : "Smart money unavailable",
+            tags: market.parentTags,
+          }}
+          className="bg-paper-2"
+        />
       </div>
     </article>
   );
@@ -175,6 +168,7 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
   const totalHolders = specialistCount(market);
   const hasGap = typeof gap.gap === "number";
   const gapIsPositive = (gap.gap ?? 0) >= 0;
+  const hasSmartMoney = totalHolders > 0;
 
   return (
     <article className="surface-card group relative overflow-hidden rounded-[3px] transition-colors duration-200 active:translate-y-px">
@@ -184,10 +178,10 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
             {String(rank).padStart(2, "0")}
           </div>
           <div className="min-w-0">
-            <div className="mb-2 flex min-h-[20px] items-center gap-2">
-              <Pill tone={hasGap && Math.abs(gap.gap ?? 0) >= 0.2 ? "accent" : "ink"}>
-                {hasGap ? (gapIsPositive ? "holder overweight" : "holder underweight") : "holder signal"}
-              </Pill>
+            <div className="mb-2 flex min-h-[20px] items-center gap-2 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
+              <span>{market.parentTags[0] ?? "market"}</span>
+              <span className="text-ink-3">/</span>
+              <span>{formatCurrency(market.volume24h)} 24h</span>
             </div>
             <h2 className="line-clamp-2 min-h-[40px] font-mono text-[13px] font-medium leading-snug text-ink transition-colors group-hover:text-white">
               {market.question}
@@ -196,23 +190,22 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
         </header>
 
         <div className="mb-5">
-          <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
-            {formatSignedPercent(gap.gap)}
+          <div className="font-mono text-[36px] font-medium leading-none text-[var(--positive)]">
+            {formatSmartMoneyOdds(gap.smartShare, hasSmartMoney)}
           </div>
-          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
-            {gap.outcome} smart gap
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink">
+            {smartMoneyLabel(gap.outcome, hasSmartMoney)}
           </div>
         </div>
 
-        <div className="mb-4 grid gap-[7px]">
-          <SplitBar label="holders" value={gap.smartShare} tone="green" />
-          <SplitBar label="market" value={gap.marketPrice} tone="red" />
-        </div>
-
-        <footer className="grid grid-cols-2 gap-3 border-t border-ink-3 pt-3">
-          <FooterMetric label="holder side" value={formatCurrency(gap.holderSize)} tone="green" />
-          <FooterMetric label="market price" value={formatEntry(gap.marketPrice)} tone="red" align="right" />
-        </footer>
+        <SmartMoneyContext
+          compact
+          marketPrice={gap.marketPrice}
+          gap={gap.gap}
+          holderCount={totalHolders}
+          holderSize={gap.holderSize}
+          signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
+        />
       </Link>
 
       <div className="absolute right-3 top-3">
@@ -223,123 +216,66 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
             id: market.marketSlug || market.conditionId,
             label: market.question,
             href,
-            subtitle: `${gap.outcome} gap ${formatSignedPercent(gap.gap)}`,
+            subtitle: hasSmartMoney
+              ? `${gap.outcome} smart money ${formatPercent(gap.smartShare)}`
+              : "Smart money unavailable",
             tags: market.parentTags,
           }}
           className="bg-paper-2"
         />
       </div>
 
-      <div className="border-t border-ink-3 bg-paper/90 px-[15px] py-2">
-        <div className="flex items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
-          <span className="truncate">{market.parentTags[0] ?? "market"}</span>
-          <span>{totalHolders} holders</span>
-          <span>{formatCurrency(market.volume24h)} 24h</span>
-        </div>
-      </div>
+      <div className="h-[2px] bg-[var(--positive)] opacity-60" />
     </article>
   );
 }
 
-function FeaturedMetric({
-  label,
-  value,
-  tone = "ink",
+function SmartMoneyContext({
+  marketPrice,
+  gap,
+  holderCount,
+  holderSize,
+  signal,
+  compact = false,
 }: {
-  label: string;
-  value: string;
-  tone?: "ink" | "green" | "red";
+  marketPrice: number | null;
+  gap: number | null;
+  holderCount: number;
+  holderSize: number;
+  signal: string;
+  compact?: boolean;
 }) {
   return (
-    <div className="min-w-0 p-4">
-      <div className="mb-2 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
-      <div
-        className={clsx(
-          "truncate font-mono text-[16px] text-ink",
-          tone === "green" && "text-[var(--positive)]",
-          tone === "red" && "text-[var(--negative)]",
-        )}
-      >
-        {value}
-      </div>
+    <div
+      className={clsx(
+        "border-t border-ink-3 font-mono uppercase tracking-[0.8px] text-ink-3",
+        compact ? "grid gap-2 pt-3 text-[9px]" : "flex flex-wrap items-center gap-x-4 gap-y-2 pt-4 text-[10px]",
+      )}
+    >
+      <span>Market {formatPercent(marketPrice)}</span>
+      <span className={clsx("text-ink-2", gapColor(gap))}>Gap {formatSignedPercent(gap)}</span>
+      <span>{signal}</span>
+      <span>{holderCount} holders</span>
+      <span className="normal-case tracking-normal">{formatCurrency(holderSize)} holder side</span>
     </div>
   );
 }
 
-function DiscrepancyTrack({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number | null;
-  tone: "green" | "red";
-}) {
-  const normalized = typeof value === "number" ? value : 0;
-  const width = `${Math.max(0, Math.min(100, normalized * 100))}%`;
-
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between font-mono text-[10px] uppercase tracking-[1px]">
-        <span className="text-ink-3">{label}</span>
-        <span className="text-ink-2">{typeof value === "number" ? `${Math.round(value * 100)}%` : "--"}</span>
-      </div>
-      <div className="h-[8px] overflow-hidden bg-ink-bg-soft">
-        <div className={clsx("h-full", tone === "green" ? "bg-[var(--positive)]" : "bg-[var(--negative)]")} style={{ width }} />
-      </div>
-    </div>
-  );
+function formatSmartMoneyOdds(value: number, hasSmartMoney: boolean) {
+  return hasSmartMoney ? formatPercent(value) : "--";
 }
 
-function SplitBar({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number | null;
-  tone: "green" | "red";
-}) {
-  const normalized = typeof value === "number" ? value : 0;
-  const width = `${Math.max(0, Math.min(100, normalized * 100))}%`;
-  return (
-    <div className="grid grid-cols-[54px_1fr_38px] items-center gap-2">
-      <span className="font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">{label}</span>
-      <div className="h-[5px] bg-ink-bg-soft">
-        <div className={clsx("h-full", tone === "green" ? "bg-[var(--positive)]" : "bg-[var(--negative)]")} style={{ width }} />
-      </div>
-      <span className="text-right font-mono text-[9px] text-ink-2">
-        {typeof value === "number" ? `${Math.round(value * 100)}%` : "--"}
-      </span>
-    </div>
-  );
+function smartMoneyLabel(outcome: string, hasSmartMoney: boolean) {
+  return hasSmartMoney ? `${outcome} smart money` : "smart money unavailable";
+}
+
+function gapColor(value: number | null) {
+  if (typeof value !== "number") return "";
+  return value >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]";
 }
 
 function gapMagnitude(value: number | null) {
   return typeof value === "number" ? Math.abs(value) : -1;
-}
-
-function FooterMetric({
-  label,
-  value,
-  tone,
-  align = "left",
-}: {
-  label: string;
-  value: string;
-  tone: "green" | "red";
-  align?: "left" | "right";
-}) {
-  return (
-    <div className={align === "right" ? "text-right" : "text-left"}>
-      <div className={clsx("font-mono text-[12px]", tone === "green" ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
-        {value}
-      </div>
-      <div className="mt-1 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
-        {label}
-      </div>
-    </div>
-  );
 }
 
 function EmptyOverviewSurface({ registryRefreshedAt }: { registryRefreshedAt: string | null }) {
