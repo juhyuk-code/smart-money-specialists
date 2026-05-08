@@ -85,8 +85,8 @@ export function MarketsDashboard() {
           <section className="grid gap-[14px]">
             <FeaturedMarketCard market={leadMarket} />
             <section className="grid gap-[14px] md:grid-cols-2 xl:grid-cols-4">
-              {gridMarkets.map((market, index) => (
-                <MarketGapCard key={market.conditionId} market={market} rank={index + 2} />
+              {gridMarkets.map((market) => (
+                <MarketGapCard key={market.conditionId} market={market} />
               ))}
             </section>
           </section>
@@ -101,9 +101,7 @@ export function MarketsDashboard() {
 function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
   const gap = marketDiscrepancy(market);
   const href = marketDetailPath(market);
-  const gapIsPositive = (gap.gap ?? 0) >= 0;
   const totalHolders = specialistCount(market);
-  const hasGap = typeof gap.gap === "number";
   const hasSmartMoney = totalHolders > 0;
 
   return (
@@ -124,37 +122,26 @@ function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
             <div className="mt-2 font-mono text-[11px] uppercase tracking-[1px] text-ink">
               {smartMoneyLabel(gap.outcome, hasSmartMoney)}
             </div>
+            <SmartMoneyOddsContext marketPrice={gap.marketPrice} gap={gap.gap} className="mt-7 lg:justify-end" />
           </div>
         </div>
 
-        <SmartMoneyContext
-          marketPrice={gap.marketPrice}
-          gap={gap.gap}
-          holderCount={totalHolders}
-          holderSize={gap.holderSize}
-          volume24h={market.volume24h}
-          signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
-        />
+        <VolumeContext holderSize={gap.holderSize} volume24h={market.volume24h} />
       </Link>
     </article>
   );
 }
 
-function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: number }) {
+function MarketGapCard({ market }: { market: SmartMoneyMarket }) {
   const gap = marketDiscrepancy(market);
   const href = marketDetailPath(market);
   const totalHolders = specialistCount(market);
-  const hasGap = typeof gap.gap === "number";
-  const gapIsPositive = (gap.gap ?? 0) >= 0;
   const hasSmartMoney = totalHolders > 0;
 
   return (
     <article className="surface-card group relative overflow-hidden rounded-[3px] transition-colors duration-200 active:translate-y-px">
       <Link href={href} className="block p-[15px]">
-        <header className="mb-5 grid grid-cols-[34px_1fr] gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[3px] border border-ink-3 bg-paper text-[10px] text-accent shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
-            {String(rank).padStart(2, "0")}
-          </div>
+        <header className="mb-5">
           <div className="min-w-0">
             <div className="mb-2 flex min-h-[20px] items-center gap-2 font-mono text-[9px] uppercase tracking-[0.8px] text-ink-3">
               <span>{market.parentTags[0] ?? "market"}</span>
@@ -174,15 +161,8 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
           </div>
         </div>
 
-        <SmartMoneyContext
-          compact
-          marketPrice={gap.marketPrice}
-          gap={gap.gap}
-          holderCount={totalHolders}
-          holderSize={gap.holderSize}
-          volume24h={market.volume24h}
-          signal={hasSmartMoney && hasGap ? (gapIsPositive ? "overweight" : "underweight") : "watching"}
-        />
+        <SmartMoneyOddsContext marketPrice={gap.marketPrice} gap={gap.gap} compact />
+        <VolumeContext holderSize={gap.holderSize} volume24h={market.volume24h} compact />
       </Link>
 
       <div className="h-[2px] bg-[var(--positive)] opacity-60" />
@@ -190,36 +170,50 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
   );
 }
 
-function SmartMoneyContext({
+function SmartMoneyOddsContext({
   marketPrice,
   gap,
-  holderCount,
-  holderSize,
-  volume24h,
-  signal,
   compact = false,
+  className,
 }: {
   marketPrice: number | null;
   gap: number | null;
-  holderCount: number;
-  holderSize: number;
-  volume24h: number;
-  signal: string;
   compact?: boolean;
+  className?: string;
 }) {
   return (
     <div
       className={clsx(
-        "border-t border-ink-3 font-mono uppercase tracking-[0.8px] text-ink-3",
-        compact ? "grid gap-2 pt-3 text-[9px]" : "flex flex-wrap items-center gap-x-4 gap-y-2 pt-4 text-[10px]",
+        "flex flex-wrap gap-x-3 gap-y-1 font-mono uppercase tracking-[0.8px] text-ink-3",
+        compact ? "mb-4 text-[9px]" : "text-[10px]",
+        className,
       )}
     >
-      <span>Market {formatPercent(marketPrice)}</span>
-      <span className={clsx("text-ink-2", gapColor(gap))}>Gap {formatSignedPercent(gap)}</span>
-      <span>{signal}</span>
-      <span>{holderCount} holders</span>
-      <span className="normal-case tracking-normal">{formatCurrency(holderSize)} holder side</span>
-      <span>{formatCurrency(volume24h)} 24h volume</span>
+      <span>Market odds {formatPercent(marketPrice)}</span>
+      <span className={gapColor(gap)}>Gap {formatSignedPercent(gap)}</span>
+    </div>
+  );
+}
+
+function VolumeContext({
+  holderSize,
+  volume24h,
+  compact = false,
+}: {
+  holderSize: number;
+  volume24h: number;
+  compact?: boolean;
+}) {
+  return (
+    <div className={clsx("grid grid-cols-2 gap-2 border-t border-ink-3 pt-3 font-mono uppercase tracking-[0.8px] text-ink-3", compact ? "text-[9px]" : "text-[10px]")}>
+      <div>
+        <div className="text-ink-2">{formatCurrency(holderSize)}</div>
+        <div className="mt-1">Smart money volume</div>
+      </div>
+      <div>
+        <div className="text-ink-2">{formatCurrency(volume24h)}</div>
+        <div className="mt-1">Market volume</div>
+      </div>
     </div>
   );
 }

@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import clsx from "clsx";
-import { LiveDot } from "./ui";
 
 const PRIMARY_ITEMS = [
   { label: "Overview", href: "/", helper: "Market gaps" },
@@ -53,7 +52,6 @@ export function NavBar() {
               PREF
             </span>
           </Link>
-          <LiveDot />
         </header>
 
         <nav className="flex max-w-full gap-2 overflow-x-auto px-2 py-2 lg:block lg:flex-1 lg:overflow-y-auto lg:px-2 lg:py-4">
@@ -81,18 +79,6 @@ export function NavBar() {
             ))}
           </SidebarSection>
         </nav>
-
-        <footer className="hidden border-t border-ink-3 px-3 py-3 lg:block">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-2 rounded-[2px] border border-[rgba(69,185,141,0.24)] bg-[rgba(69,185,141,0.08)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-[var(--positive)]">
-              <span className="h-2 w-2 bg-[var(--positive)]" aria-hidden="true" />
-              Connected
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
-              v0.1
-            </span>
-          </div>
-        </footer>
       </div>
     </aside>
   );
