@@ -10,6 +10,7 @@ import {
   truncateWallet,
 } from "../src/domain/signal.js";
 import { PreferenceMcpApi } from "../src/data/preferenceMcpApi.js";
+import { RegistryStore } from "../src/services/registryStore.js";
 
 test("normalizes raw market tags to supported parent categories", () => {
   assert.deepEqual(normalizeParentTags(["US Election", "Federal Reserve", "bitcoin"]), [
@@ -158,22 +159,37 @@ test("keeps privacy-safe wallet labels", () => {
   assert.equal(truncateWallet("0xabc0000000000000000000000000000000000001"), "0xabc0...0001");
 });
 
+test("registry store tolerates unavailable registry enrichment", async () => {
+  const store = new RegistryStore({
+    listKnownWallets: async () => {
+      throw new Error("Insufficient credits");
+    },
+    listClosedPositions: async () => ({ positions: [] }),
+    listClosedMarketTags: async () => {
+      throw new Error("Insufficient credits");
+    },
+    getDiagnostics: () => ({ requestedKolLimit: 100 }),
+  });
+
+  const snapshot = await store.ensureReady();
+  assert.deepEqual(snapshot.records, []);
+  assert.equal(snapshot.audit.upstreamErrors.length, 2);
+  assert.equal(snapshot.audit.upstreamErrors[0].source, "wallets");
+});
+
 test("preference adapter maps MCP market and holder payloads to app shapes", async () => {
   const api = new PreferenceMcpApi({
+    marketDiscovery: async () => [
+      {
+        slug: "will-bitcoin-hit-150k-by-june-30-2026",
+        question: "Will Bitcoin hit $150k by June 30, 2026?",
+        outcomes: ["Yes", "No"],
+        outcomePrices: [0.0135, 0.9865],
+        conditionId: "0xa0f4c4924ea1a8b410b4ce821c2a9955fad21a1b19bdcfde90816732278b3dd5",
+        volume24hr: 5821652.894196,
+      },
+    ],
     invokeCapability: async (capabilityId, args) => {
-      if (capabilityId === "polymarket.discovery.search_markets" && args.query === "will") {
-        assert.equal(args.order, "volume24hr");
-        return {
-          markets: [
-            {
-              id: "573655",
-              slug: "will-bitcoin-hit-150k-by-june-30-2026",
-              question: "Will Bitcoin hit $150k by June 30, 2026?",
-              volume24hr: "5821652.894196",
-            },
-          ],
-        };
-      }
       if (capabilityId === "polymarket.discovery.search_markets") {
         return {
           markets: [
@@ -298,19 +314,18 @@ test("preference adapter maps KOL wallets and handles unavailable closed PnL", a
 
 test("preference adapter falls back to current top holders when known KOL list is empty", async () => {
   const api = new PreferenceMcpApi({
+    marketDiscovery: async () => [
+      {
+        slug: "fed-cut-rates-2026",
+        question: "Will the Fed cut rates in 2026?",
+        conditionId: "0xcondition",
+        outcomes: ["Yes", "No"],
+        outcomePrices: [0.42, 0.58],
+        volume24hr: 1000,
+      },
+    ],
     invokeCapability: async (capabilityId, args) => {
       if (capabilityId === "wallet.scrape.list_known_kols") return { rows: [] };
-      if (capabilityId === "polymarket.discovery.search_markets" && args.query === "will") {
-        return {
-          markets: [
-            {
-              slug: "fed-cut-rates-2026",
-              question: "Will the Fed cut rates in 2026?",
-              volume24hr: 1000,
-            },
-          ],
-        };
-      }
       if (capabilityId === "polymarket.discovery.search_markets") {
         return {
           markets: [

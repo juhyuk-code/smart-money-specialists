@@ -20,11 +20,13 @@ export class PreferenceMcpApi {
     kolLimit = DEFAULT_KOL_LIMIT,
     trendingLimit = DEFAULT_TRENDING_LIMIT,
     closedPositionLimit = DEFAULT_CLOSED_POSITION_LIMIT,
+    marketDiscovery = fetchGammaTopMarkets,
   } = {}) {
     if (typeof invokeCapability !== "function") {
       throw new Error("PreferenceMcpApi requires an invokeCapability function");
     }
     this.invokeCapability = invokeCapability;
+    this.marketDiscovery = marketDiscovery;
     this.kolLimit = kolLimit;
     this.trendingLimit = trendingLimit;
     this.closedPositionLimit = closedPositionLimit;
@@ -171,6 +173,16 @@ export class PreferenceMcpApi {
   }
 
   async listTrendingMarkets() {
+    const gammaMarkets = await this.marketDiscovery({ limit: this.trendingLimit });
+    const normalizedGammaMarkets = gammaMarkets
+      .map((market) => normalizeMarket(market))
+      .filter(Boolean)
+      .sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0));
+
+    if (normalizedGammaMarkets.length > 0) {
+      return { markets: normalizedGammaMarkets };
+    }
+
     const payload = await this.invokeCapability(CAPABILITIES.listTrending, {
       query: "will",
       limit: this.trendingLimit,
@@ -490,6 +502,26 @@ function mergeMarketMetadata(existing, incoming) {
     currentPrices: Object.keys(incoming.currentPrices ?? {}).length > 0 ? incoming.currentPrices : existing.currentPrices,
     volume24h: existing.volume24h ?? incoming.volume24h,
   };
+}
+
+async function fetchGammaTopMarkets({ limit }) {
+  try {
+    const url = new URL("https://gamma-api.polymarket.com/markets");
+    url.searchParams.set("active", "true");
+    url.searchParams.set("closed", "false");
+    url.searchParams.set("archived", "false");
+    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("order", "volume24hr");
+    url.searchParams.set("ascending", "false");
+
+    const response = await fetch(url, {
+      headers: { accept: "application/json" },
+    });
+    if (!response.ok) return [];
+    return parseArray(await response.json());
+  } catch {
+    return [];
+  }
 }
 
 async function fetchGammaMarketsBySlugs(slugs) {

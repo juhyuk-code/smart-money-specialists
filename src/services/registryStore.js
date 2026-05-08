@@ -10,11 +10,19 @@ export class RegistryStore {
 
   async rebuild() {
     const refreshedAt = new Date().toISOString();
-    const [{ wallets }, { positions }, { marketTags }] = await Promise.all([
+    const [walletResult, positionResult, marketTagResult] = await Promise.allSettled([
       this.api.listKnownWallets(),
       this.api.listClosedPositions(),
       this.api.listClosedMarketTags(),
     ]);
+    const wallets = valueOrDefault(walletResult, { wallets: {} }).wallets;
+    const positions = valueOrDefault(positionResult, { positions: [] }).positions;
+    const marketTags = valueOrDefault(marketTagResult, { marketTags: {} }).marketTags;
+    const upstreamErrors = [
+      upstreamError("wallets", walletResult),
+      upstreamError("positions", positionResult),
+      upstreamError("marketTags", marketTagResult),
+    ].filter(Boolean);
 
     this.records = buildRegistryRecords({
       wallets,
@@ -29,6 +37,7 @@ export class RegistryStore {
       positions,
       marketTags,
       wallets,
+      upstreamErrors,
       upstreamDiagnostics: this.api.getDiagnostics?.() ?? null,
     });
     return this.snapshot();
@@ -48,7 +57,19 @@ export class RegistryStore {
   }
 }
 
-function buildAudit({ records, positions, marketTags, wallets, upstreamDiagnostics }) {
+function valueOrDefault(result, fallback) {
+  return result.status === "fulfilled" ? result.value : fallback;
+}
+
+function upstreamError(source, result) {
+  if (result.status === "fulfilled") return null;
+  return {
+    source,
+    message: result.reason?.message ?? String(result.reason),
+  };
+}
+
+function buildAudit({ records, positions, marketTags, wallets, upstreamErrors, upstreamDiagnostics }) {
   const qualifiedByCategory = {};
   const recordsByCategory = {};
   const positionsByCategory = {};
@@ -99,6 +120,7 @@ function buildAudit({ records, positions, marketTags, wallets, upstreamDiagnosti
       })),
     thresholds: DEFAULT_THRESHOLDS,
     thresholdVersion: "v1-demo",
+    upstreamErrors,
     upstreamDiagnostics,
   };
 }
