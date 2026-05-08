@@ -111,11 +111,12 @@ function SidebarLink({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={clsx(
-        "group relative grid min-w-[132px] grid-cols-[18px_1fr] items-start gap-2 rounded-[3px] border px-2 py-2 text-left transition-colors active:translate-y-px lg:min-w-0",
+        "group relative grid min-w-[132px] grid-cols-[18px_1fr] items-start gap-2 rounded-[3px] border px-2 py-2 text-left transition-colors focus:outline-none active:translate-y-px lg:min-w-0",
         active
           ? "border-ink-3 bg-ink-bg-soft text-ink shadow-[inset_2px_0_0_var(--accent)]"
-          : "border-transparent text-ink-2 hover:border-ink-3 hover:bg-ink-bg-soft hover:text-ink",
+          : "border-transparent text-ink-2 hover:text-ink focus-visible:border-ink-3 focus-visible:outline-none",
       )}
     >
       <span
