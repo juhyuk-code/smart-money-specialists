@@ -239,17 +239,10 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-5 flex flex-col gap-4 border-b border-dashed border-ink-3 pb-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">
-          <Eyebrow>{"// WALLETS ▸ INDEX"}</Eyebrow>
-          <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-            {categoryLabel === "all" ? "HOLDER WALLETS" : `${categoryLabel} wallets`}
-          </h1>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {["all", "politics", "sports", "crypto", "macro", "weather", "sci-tech"].map((item) => (
-              <Link key={item} href={item === "all" ? "/wallets" : `/wallets?category=${item}`}>
-                <Pill tone={categoryLabel === item ? "accent" : "ink"}>{item}</Pill>
-              </Link>
-            ))}
+            <Eyebrow>{"// WALLETS ▸ INDEX"}</Eyebrow>
+            <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
+              {categoryLabel === "all" ? "HOLDER WALLETS" : `${categoryLabel} wallets`}
+            </h1>
           </div>
         </section>
 
