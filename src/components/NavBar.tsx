@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import clsx from "clsx";
 
@@ -22,10 +22,18 @@ const WALLET_ITEMS = [
   { label: "Sci-Tech", href: "/wallets?category=sci-tech", helper: "Science and tech" },
 ];
 
-export function NavBar() {
+type NavBarProps = {
+  activeWalletCategory?: string | null;
+};
+
+function normalizeWalletCategory(category?: string | null) {
+  const normalized = category?.trim().toLowerCase();
+  return normalized && normalized !== "all" ? normalized : null;
+}
+
+export function NavBar({ activeWalletCategory }: NavBarProps = {}) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const activeCategory = searchParams.get("category");
+  const activeCategory = normalizeWalletCategory(activeWalletCategory);
 
   const isActive = (href: string) => {
     const baseHref = href.split("?")[0];
