@@ -3,7 +3,7 @@
 import Link from "next/link";
 import clsx from "clsx";
 import { useEffect, useMemo, useState } from "react";
-import { Frame, Pill, SparkLine } from "@/components/ui";
+import { Frame, Pill } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
 import { FollowButton } from "@/components/FollowButton";
 import {
@@ -132,14 +132,9 @@ function FeaturedMarketCard({ market }: { market: SmartMoneyMarket }) {
             </div>
           </div>
 
-          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-end">
-            <div className="grid gap-3">
-              <DiscrepancyTrack label="holders" value={gap.smartShare} tone="green" />
-              <DiscrepancyTrack label="market" value={gap.marketPrice} tone="red" />
-            </div>
-            <div className="flex min-h-[96px] items-end justify-end border border-dashed border-ink-3 bg-ink-bg-soft p-3">
-              <SparkLine up={gapIsPositive} width={228} height={82} />
-            </div>
+          <div className="grid gap-3">
+            <DiscrepancyTrack label="holders" value={gap.smartShare} tone="green" />
+            <DiscrepancyTrack label="market" value={gap.marketPrice} tone="red" />
           </div>
         </Link>
 
@@ -200,16 +195,13 @@ function MarketGapCard({ market, rank }: { market: SmartMoneyMarket; rank: numbe
           </div>
         </header>
 
-        <div className="mb-5 grid grid-cols-[1fr_112px] items-end gap-3">
-          <div>
-            <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
-              {formatSignedPercent(gap.gap)}
-            </div>
-            <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
-              {gap.outcome} smart gap
-            </div>
+        <div className="mb-5">
+          <div className={clsx("font-mono text-[22px] leading-none", gapIsPositive ? "text-[var(--positive)]" : "text-[var(--negative)]")}>
+            {formatSignedPercent(gap.gap)}
           </div>
-          <SparkLine up={gapIsPositive} width={104} height={42} className="justify-self-end opacity-95" />
+          <div className="mt-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-3">
+            {gap.outcome} smart gap
+          </div>
         </div>
 
         <div className="mb-4 grid gap-[7px]">
