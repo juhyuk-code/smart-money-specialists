@@ -1,8 +1,7 @@
-import pg from "pg";
+import { getPool as getSharedPool } from "./db.js";
 
 const TABLE_NAME = "market_snapshots";
 
-let pool;
 let schemaReady;
 
 export function hasDatabaseSnapshotStore() {
@@ -10,7 +9,7 @@ export function hasDatabaseSnapshotStore() {
 }
 
 export async function saveMarketSnapshot(key, payload) {
-  const client = getPool();
+  const client = getSharedPool();
   if (!client) return null;
   await ensureSchema();
   const result = await client.query(
@@ -30,7 +29,7 @@ export async function saveMarketSnapshot(key, payload) {
 }
 
 export async function readMarketSnapshot(key) {
-  const client = getPool();
+  const client = getSharedPool();
   if (!client) return null;
   await ensureSchema();
   const result = await client.query(
@@ -45,21 +44,9 @@ export async function readMarketSnapshot(key) {
   };
 }
 
-function getPool() {
-  if (!process.env.DATABASE_URL) return null;
-  if (!pool) {
-    pool = new pg.Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
-      max: 1,
-    });
-  }
-  return pool;
-}
-
 async function ensureSchema() {
   if (schemaReady) return schemaReady;
-  const client = getPool();
+  const client = getSharedPool();
   if (!client) return null;
   schemaReady = client.query(`
     create table if not exists ${TABLE_NAME} (

@@ -1,6 +1,9 @@
 import { MockPreferenceApi } from "./data/mockPreferenceApi.js";
+import { PolymarketApi } from "./data/polymarketApi.js";
 import { createPreferenceMcpApiFromEnv } from "./data/preferenceMcpApi.js";
 import { MarketScanner } from "./services/marketScanner.js";
+import { PolymarketIntelligenceService } from "./services/polymarketIntelligenceService.js";
+import { PolymarketStore } from "./services/polymarketStore.js";
 import { RegistryStore } from "./services/registryStore.js";
 
 let context;
@@ -8,6 +11,20 @@ let context;
 export function getAppContext() {
   if (!context) {
     const dataSource = getDataSource();
+    if (dataSource === "polymarket") {
+      const polymarketStore = new PolymarketStore();
+      const api = new PolymarketApi({ store: polymarketStore });
+      const intelligenceService = new PolymarketIntelligenceService(api, polymarketStore);
+      context = {
+        api,
+        registryStore: intelligenceService,
+        scanner: intelligenceService,
+        intelligenceService,
+        polymarketStore,
+        dataSource,
+      };
+      return context;
+    }
     const api = createDataApi();
     const registryStore = new RegistryStore(api);
     const scanner = new MarketScanner(api, registryStore);
@@ -23,7 +40,8 @@ export function createDataApi() {
   const source = getDataSource();
   if (source === "mock") return new MockPreferenceApi();
   if (source === "preference") return createPreferenceMcpApiFromEnv();
-  throw new Error(`Unsupported DATA_SOURCE "${source}". Use "mock" or "preference".`);
+  if (source === "polymarket") return new PolymarketApi({ store: new PolymarketStore() });
+  throw new Error(`Unsupported DATA_SOURCE "${source}". Use "mock", "preference", or "polymarket".`);
 }
 
 export function getDataSource() {
@@ -33,6 +51,7 @@ export function getDataSource() {
 export function getRuntimeDebugInfo() {
   return {
     dataSource: getDataSource(),
+    hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
     hasPreferenceMcpUrl: Boolean(process.env.PREFERENCE_MCP_URL),
     hasPreferenceMcpToken: Boolean(process.env.PREFERENCE_MCP_TOKEN),
     nodeEnv: process.env.NODE_ENV ?? null,

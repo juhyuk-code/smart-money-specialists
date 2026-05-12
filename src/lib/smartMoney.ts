@@ -1,14 +1,51 @@
+export type LeaderboardLabel = {
+  id: string;
+  label: string;
+  type?: string;
+  rank?: number | null;
+  category?: string | null;
+};
+
+export type CohortFilter = "top_100_pnl" | "top_250_pnl" | "top_1000_pnl";
+
+export const COHORT_FILTERS: Array<{ id: CohortFilter; label: string; helper: string }> = [
+  { id: "top_1000_pnl", label: "Top 1000", helper: "default" },
+  { id: "top_250_pnl", label: "Top 250", helper: "filter" },
+  { id: "top_100_pnl", label: "Top 100", helper: "filter" },
+];
+
 export type Specialist = {
   wallet: string;
   displayLabel: string;
   knownHandle?: string;
   category?: string;
+  label?: string;
+  walletType?: string;
+  smartScoreRaw?: number | null;
+  smartScoreAdjusted?: number | null;
+  bondness?: number | null;
+  directionalRoi?: number | null;
+  directionalStakeShare?: number | null;
+  highProbStakeShare?: number | null;
+  ultraHighProbStakeShare?: number | null;
+  largestMarketPnlShare?: number | null;
+  shrunkWinRate?: number | null;
+  weightedEdge?: number | null;
+  clv24hMidOdds?: number | null;
+  labelWeight?: number;
   currentOutcome: string;
   currentSize: number;
+  shares?: number;
+  costBasis?: number | null;
+  currentValue?: number | null;
   averageEntry: number | null;
   realizedPnl: number | null;
   roi: number | null;
   closedMarkets: number | null;
+  resolvedNotional?: number | null;
+  winRate?: number | null;
+  topGainConcentration?: number | null;
+  leaderboardLabels?: LeaderboardLabel[];
   last90dPnl: number | null;
 };
 
@@ -16,9 +53,44 @@ export type MarketOutcome = {
   outcome: string;
   specialistCount: number;
   totalCurrentSize: number;
+  totalCostBasis?: number;
+  totalCurrentValue?: number;
+  weightedSmartSize?: number;
   weightedAverageEntry: number | null;
   averageEntryStatus?: string;
   topSpecialists: Specialist[];
+};
+
+export type ExposureRank = {
+  rank: number | null;
+  score?: number;
+  cohortWalletCount: number;
+  topCohortPresent: CohortFilter | string | null;
+  topCohortRank?: number | null;
+  currentExposure: number;
+  costBasis?: number;
+  outcomeConcentration: number;
+  freshness?: string | null;
+};
+
+export type SmartGapRow = {
+  outcome: string;
+  smartShare: number;
+  marketPrice: number | null;
+  gap: number | null;
+  weightedSmartSize?: number;
+  holderSize: number;
+  holderCount: number;
+};
+
+export type DataQuality = {
+  status: string;
+  states: string[];
+  primaryWalletCount?: number;
+  secondaryWalletCount?: number;
+  relevantRegistryRecords?: number;
+  holderSnapshotAt?: string | null;
+  registryRefreshedAt?: string | null;
 };
 
 export type SmartMoneyMarket = {
@@ -28,17 +100,35 @@ export type SmartMoneyMarket = {
   currentPrices: Record<string, number>;
   parentTags: string[];
   volume24h: number;
+  active?: boolean | null;
+  closed?: boolean | null;
   outcomes: MarketOutcome[];
   status: string;
   registryRefreshedAt: string | null;
   marketDataRefreshedAt: string | null;
+  holderSnapshotAt?: string | null;
   headline: string;
+  smartGap?: SmartGapRow[];
+  labelBreakdown?: Record<string, number>;
+  primarySignalWallets?: Specialist[];
+  secondarySignalWallets?: Specialist[];
+  dataQuality?: DataQuality;
+  exposureRank?: ExposureRank;
 };
 
 export type MarketsPayload = {
   dataSource?: string;
   registryRefreshedAt: string | null;
   markets: SmartMoneyMarket[];
+  mode?: string;
+  marketDataRefreshedAt?: string | null;
+  cohort?: {
+    source?: string;
+    requestedWallets?: number;
+    walletsDiscovered?: number;
+    walletsProcessed?: number;
+    positionsIngested?: number;
+  };
 };
 
 export type Snapshot = MarketsPayload & {
@@ -57,15 +147,20 @@ export type Leader = {
   last90dPnl: number | null;
   closedMarkets: number | null;
   roi: number | null;
+  leaderboardLabels?: LeaderboardLabel[];
   markets: Array<{
     conditionId: string;
     marketSlug: string;
     question: string;
     outcome: string;
     currentSize: number;
+    shares?: number;
+    costBasis?: number | null;
+    currentValue?: number | null;
     averageEntry: number | null;
     realizedPnl: number | null;
     roi: number | null;
+    leaderboardLabels?: LeaderboardLabel[];
     volume24h: number;
     parentTags: string[];
     currentPrices: Record<string, number>;
@@ -101,7 +196,8 @@ export type FeedEvent = {
   outcomeSpecialistCount: number;
 };
 
-export const SNAPSHOT_KEY = "pref:last-market-snapshot";
+export const SNAPSHOT_KEY = "pref:last-market-snapshot:v3";
+const PREVIOUS_SNAPSHOT_KEY = "pref:last-market-snapshot:v2";
 const LEGACY_SNAPSHOT_KEY = "smart-money-specialists:last-market-snapshot";
 const LEADERS_SNAPSHOT_KEY = "pref:last-leaders-snapshot";
 const FEED_SNAPSHOT_KEY = "pref:last-feed-snapshot";
@@ -121,14 +217,29 @@ export function saveSnapshot(payload: MarketsPayload) {
 
 export function readSnapshot(): Snapshot | null {
   if (typeof window === "undefined") return null;
-  try {
-    const rawSnapshot = window.localStorage.getItem(SNAPSHOT_KEY) ?? window.localStorage.getItem(LEGACY_SNAPSHOT_KEY);
-    const parsed = JSON.parse(rawSnapshot ?? "null");
-    if (!parsed || !Array.isArray(parsed.markets) || parsed.markets.length === 0) return null;
-    return parsed;
-  } catch {
-    return null;
+  for (const key of [SNAPSHOT_KEY, PREVIOUS_SNAPSHOT_KEY, LEGACY_SNAPSHOT_KEY]) {
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(key) ?? "null");
+      if (isUsefulMarketSnapshot(parsed)) return parsed;
+    } catch {
+      // Ignore corrupt snapshots and continue to the next known key.
+    }
   }
+  return null;
+}
+
+function isUsefulMarketSnapshot(value: unknown): value is Snapshot {
+  if (!value || typeof value !== "object" || !("markets" in value)) return false;
+  const markets = (value as { markets?: unknown }).markets;
+  return Array.isArray(markets) && markets.some((market) => {
+    const exposureRank = (market as SmartMoneyMarket).exposureRank;
+    return Boolean(
+      exposureRank &&
+      ((exposureRank.cohortWalletCount ?? 0) > 0 ||
+        (exposureRank.currentExposure ?? 0) > 0 ||
+        typeof exposureRank.rank === "number"),
+    );
+  });
 }
 
 function saveClientSnapshot<T>(key: string, value: T, isUseful: (value: T) => boolean) {
@@ -179,6 +290,9 @@ export async function fetchMarkets(): Promise<MarketsPayload | null> {
     dataSource: data.dataSource,
     registryRefreshedAt: data.registryRefreshedAt,
     markets: data.markets,
+    mode: data.mode,
+    marketDataRefreshedAt: data.marketDataRefreshedAt,
+    cohort: data.cohort,
   };
 }
 
@@ -196,6 +310,9 @@ export async function scanCustomMarket(url: string): Promise<MarketsPayload | nu
   return {
     dataSource: data.dataSource,
     registryRefreshedAt: data.registryRefreshedAt ?? data.markets[0]?.registryRefreshedAt ?? null,
+    marketDataRefreshedAt: data.marketDataRefreshedAt,
+    mode: data.mode,
+    cohort: data.cohort,
     markets: data.markets,
   };
 }
@@ -262,6 +379,188 @@ export function specialistCount(market: SmartMoneyMarket) {
   return market.outcomes.reduce((sum, outcome) => sum + outcome.specialistCount, 0);
 }
 
+export function hasTopPnlExposure(market: SmartMoneyMarket) {
+  return marketExposureWalletCount(market) > 0 || marketExposureValue(market) > 0;
+}
+
+export function cohortLabel(cohort: CohortFilter) {
+  if (cohort === "top_100_pnl") return "top 100";
+  if (cohort === "top_250_pnl") return "top 250";
+  return "top 1000";
+}
+
+export function isOpenMarket(market: Pick<SmartMoneyMarket, "active" | "closed">) {
+  return market.closed !== true && market.active !== false;
+}
+
+export function marketSmartMoneyVolume(market: SmartMoneyMarket) {
+  const gapVolume = (market.smartGap ?? []).reduce((sum, row) => sum + (row.weightedSmartSize ?? 0), 0);
+  if (gapVolume > 0) return gapVolume;
+
+  const outcomeVolume = market.outcomes.reduce(
+    (sum, outcome) => sum + (outcome.totalCostBasis ?? outcome.totalCurrentValue ?? outcome.totalCurrentSize ?? 0),
+    0,
+  );
+  if (outcomeVolume > 0) return outcomeVolume;
+
+  const walletByKey = new Map<string, Specialist>();
+  for (const wallet of [...(market.primarySignalWallets ?? []), ...(market.secondarySignalWallets ?? [])]) {
+    walletByKey.set(`${wallet.wallet}:${wallet.currentOutcome}`, wallet);
+  }
+  return Array.from(walletByKey.values()).reduce(
+    (sum, wallet) => sum + (wallet.costBasis ?? wallet.currentValue ?? wallet.currentSize ?? 0),
+    0,
+  );
+}
+
+export function marketSmartTraderCount(market: SmartMoneyMarket) {
+  return countSignalWallets(market);
+}
+
+
+export function marketMatchesCohort(market: SmartMoneyMarket, cohort: CohortFilter) {
+  if (!hasCohortExposure(market)) return false;
+  const threshold = cohortThreshold(cohort);
+  const ranks = marketCohortRanks(market);
+  if (ranks.length === 0) return cohort === "top_1000_pnl" && marketExposureWalletCount(market) > 0;
+  return ranks.some((rank) => rank <= threshold);
+}
+
+export function compareExposureRankedMarkets(a: SmartMoneyMarket, b: SmartMoneyMarket) {
+  return (
+    compareNullableAsc(a.exposureRank?.rank, b.exposureRank?.rank) ||
+    (b.exposureRank?.score ?? 0) - (a.exposureRank?.score ?? 0) ||
+    marketExposureWalletCount(b) - marketExposureWalletCount(a) ||
+    cohortStrength(b.exposureRank?.topCohortPresent) - cohortStrength(a.exposureRank?.topCohortPresent) ||
+    marketExposureValue(b) - marketExposureValue(a) ||
+    (b.exposureRank?.outcomeConcentration ?? 0) - (a.exposureRank?.outcomeConcentration ?? 0) ||
+    compareNullableAsc(a.exposureRank?.topCohortRank, b.exposureRank?.topCohortRank) ||
+    a.question.localeCompare(b.question)
+  );
+}
+
+export function marketExposureWalletCount(market: SmartMoneyMarket) {
+  return market.exposureRank?.cohortWalletCount ?? countSignalWallets(market);
+}
+
+export function marketExposureValue(market: SmartMoneyMarket) {
+  return market.exposureRank?.currentExposure ?? marketSmartMoneyVolume(market);
+}
+
+function hasCohortExposure(market: SmartMoneyMarket) {
+  return marketExposureWalletCount(market) > 0 || marketCohortRanks(market).length > 0;
+}
+
+function countSignalWallets(market: SmartMoneyMarket) {
+  const wallets = new Set<string>();
+  for (const wallet of market.primarySignalWallets ?? []) {
+    wallets.add(wallet.wallet.toLowerCase());
+  }
+  if (wallets.size > 0) return wallets.size;
+
+  for (const outcome of market.outcomes) {
+    for (const wallet of outcome.topSpecialists) wallets.add(wallet.wallet.toLowerCase());
+  }
+  return wallets.size;
+}
+
+function marketCohortRanks(market: SmartMoneyMarket) {
+  const ranks = new Set<number>();
+  const collect = (label: LeaderboardLabel) => {
+    if (!isGlobalPnlLabel(label)) return;
+    const rank = label.rank ?? cohortThreshold(label.id as CohortFilter);
+    ranks.add(rank);
+  };
+
+  if (typeof market.exposureRank?.topCohortRank === "number" && Number.isFinite(market.exposureRank.topCohortRank)) {
+    ranks.add(market.exposureRank.topCohortRank);
+  }
+
+  if (market.exposureRank?.topCohortPresent && isCohortFilter(market.exposureRank.topCohortPresent)) {
+    ranks.add(market.exposureRank.topCohortRank ?? cohortThreshold(market.exposureRank.topCohortPresent));
+  }
+
+  for (const [labelId, count] of Object.entries(market.labelBreakdown ?? {})) {
+    if (count > 0 && isCohortFilter(labelId)) ranks.add(cohortThreshold(labelId));
+  }
+
+  for (const wallet of [...(market.primarySignalWallets ?? []), ...(market.secondarySignalWallets ?? [])]) {
+    for (const label of wallet.leaderboardLabels ?? []) collect(label);
+  }
+  for (const outcome of market.outcomes ?? []) {
+    for (const wallet of outcome.topSpecialists ?? []) {
+      for (const label of wallet.leaderboardLabels ?? []) collect(label);
+    }
+  }
+
+  return Array.from(ranks);
+}
+
+function isCohortFilter(value: string): value is CohortFilter {
+  return value === "top_100_pnl" || value === "top_250_pnl" || value === "top_1000_pnl";
+}
+
+function cohortThreshold(cohort: CohortFilter) {
+  if (cohort === "top_100_pnl") return 100;
+  if (cohort === "top_250_pnl") return 250;
+  return 1000;
+}
+
+function cohortStrength(cohort: string | null | undefined) {
+  if (cohort === "top_100_pnl") return 3;
+  if (cohort === "top_250_pnl") return 2;
+  if (cohort === "top_1000_pnl") return 1;
+  return 0;
+}
+
+function compareNullableAsc(a: number | null | undefined, b: number | null | undefined) {
+  const left = typeof a === "number" && Number.isFinite(a) ? a : Infinity;
+  const right = typeof b === "number" && Number.isFinite(b) ? b : Infinity;
+  return left - right;
+}
+
+export function marketLeaderboardLabels(market: SmartMoneyMarket, limit = 4): LeaderboardLabel[] {
+  const labels = new Map<string, LeaderboardLabel>();
+  for (const wallet of [...(market.primarySignalWallets ?? []), ...(market.secondarySignalWallets ?? [])]) {
+    for (const label of wallet.leaderboardLabels ?? []) {
+      if (!isGlobalPnlLabel(label)) continue;
+      const current = labels.get(label.id);
+      if (!current || (label.rank ?? Infinity) < (current.rank ?? Infinity)) labels.set(label.id, label);
+    }
+  }
+  if (labels.size === 0 && market.exposureRank?.topCohortPresent && isCohortFilter(market.exposureRank.topCohortPresent)) {
+    labels.set(market.exposureRank.topCohortPresent, {
+      id: market.exposureRank.topCohortPresent,
+      label: cohortLabel(market.exposureRank.topCohortPresent),
+      type: "cohort_exposure",
+      rank: market.exposureRank.topCohortRank ?? null,
+    });
+  }
+  return Array.from(labels.values()).sort(compareLeaderboardLabels).slice(0, limit);
+}
+
+export function globalPnlLabels(labels: LeaderboardLabel[] | undefined) {
+  return (labels ?? []).filter(isGlobalPnlLabel).sort(compareLeaderboardLabels);
+}
+
+export function compareLeaderboardLabels(a: LeaderboardLabel, b: LeaderboardLabel) {
+  const tierDelta = leaderboardTier(a) - leaderboardTier(b);
+  if (tierDelta !== 0) return tierDelta;
+  return (a.rank ?? Infinity) - (b.rank ?? Infinity);
+}
+
+function leaderboardTier(label: LeaderboardLabel) {
+  if (label.id === "top_100_pnl") return 0;
+  if (label.id === "top_250_pnl") return 1;
+  if (label.id === "top_1000_pnl") return 2;
+  return 3;
+}
+
+
+function isGlobalPnlLabel(label: LeaderboardLabel) {
+  return label.id === "top_100_pnl" || label.id === "top_250_pnl" || label.id === "top_1000_pnl";
+}
+
 export function leadingOutcome(market: SmartMoneyMarket) {
   return [...market.outcomes].sort((a, b) => b.specialistCount - a.specialistCount)[0] ?? null;
 }
@@ -271,6 +570,7 @@ export type MarketGap = {
   smartShare: number;
   marketPrice: number | null;
   gap: number | null;
+  weightedSmartSize?: number;
   holderSize: number;
   holderCount: number;
 };
@@ -287,17 +587,33 @@ export function marketDiscrepancy(market: SmartMoneyMarket): MarketGap {
 }
 
 export function marketOutcomeGaps(market: SmartMoneyMarket): MarketGap[] {
-  const totalSize = market.outcomes.reduce((sum, outcome) => sum + outcome.totalCurrentSize, 0);
+  if (Array.isArray(market.smartGap) && market.smartGap.length > 0) {
+    return market.smartGap
+      .map((row) => ({
+        outcome: row.outcome,
+        smartShare: row.smartShare,
+        marketPrice: row.marketPrice,
+        gap: row.gap,
+        weightedSmartSize: row.weightedSmartSize,
+        holderSize: row.holderSize,
+        holderCount: row.holderCount,
+      }))
+      .sort((a, b) => gapMagnitude(b.gap) - gapMagnitude(a.gap));
+  }
+
+  const totalSize = market.outcomes.reduce((sum, outcome) => sum + (outcome.totalCostBasis ?? outcome.totalCurrentSize), 0);
   return market.outcomes
     .map((outcome) => {
-      const smartShare = totalSize > 0 ? outcome.totalCurrentSize / totalSize : 0;
+      const weightedSmartSize = outcome.totalCostBasis ?? outcome.totalCurrentSize;
+      const smartShare = totalSize > 0 ? weightedSmartSize / totalSize : 0;
       const marketPrice = priceForOutcome(market.currentPrices, outcome.outcome);
       return {
         outcome: outcome.outcome,
         smartShare,
         marketPrice,
         gap: typeof marketPrice === "number" ? smartShare - marketPrice : null,
-        holderSize: outcome.totalCurrentSize,
+        weightedSmartSize,
+        holderSize: weightedSmartSize,
         holderCount: outcome.specialistCount,
       };
     })

@@ -6,13 +6,13 @@ import type { ReactNode } from "react";
 import clsx from "clsx";
 
 const PRIMARY_ITEMS = [
-  { label: "Overview", href: "/", helper: "Market gaps" },
-  { label: "Feed", href: "/feed", helper: "Live holder stream" },
+  { label: "Markets", href: "/markets", helper: "Market gaps" },
+  { label: "Feed", href: "/feed", helper: "Top-PnL exposure stream" },
   { label: "Watchlist", href: "/watchlist", helper: "Saved markets and wallets" },
 ];
 
 const WALLET_ITEMS = [
-  { label: "All Wallets", href: "/wallets", helper: "Every tracked holder" },
+  { label: "All Wallets", href: "/wallets", helper: "Top-PnL wallet cohort" },
   { label: "Leaders", href: "/leaders", helper: "Largest current exposure" },
 ];
 

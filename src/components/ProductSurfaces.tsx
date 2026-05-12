@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Eyebrow, Frame, Pill, SparkLine, StatCard } from "@/components/ui";
+import { Eyebrow, Frame, Pill, SignalBadgeStrip, SparkLine, StatCard, outcomeTextClass } from "@/components/ui";
 import { NavBar } from "@/components/NavBar";
 import { FollowButton } from "@/components/FollowButton";
 import {
@@ -13,6 +13,7 @@ import {
   fetchWallets,
   formatCurrency,
   formatEntry,
+  globalPnlLabels,
   marketDetailPath,
   relativeTime,
   type FeedEvent,
@@ -43,9 +44,9 @@ export function LeadersSurface() {
       <main className="px-4 py-5 sm:px-5 md:px-8 md:py-7">
         <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-col gap-[6px]">
-            <Eyebrow>{"// HOLDERS ▸ CURRENT EXPOSURE"}</Eyebrow>
+            <Eyebrow>{"// TOP-PNL WALLETS ▸ CURRENT EXPOSURE"}</Eyebrow>
             <h1 className="font-mono text-[19px] font-medium uppercase leading-tight tracking-[1px] text-ink sm:text-[21px] md:text-[24px]">
-              PREF · HOLDERS
+              PREF · TOP-PNL WALLETS
             </h1>
           </div>
           <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:overflow-visible sm:pb-0">
@@ -57,10 +58,10 @@ export function LeadersSurface() {
         </section>
 
         <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="tracked wallets" value={hasData ? String(leaders.length) : "--"} />
+          <StatCard label="top-PnL wallets" value={hasData ? String(leaders.length) : "--"} />
           <StatCard label="open positions" value={hasData ? String(totalPositions) : "--"} highlight />
           <StatCard label="current exposure" value={hasData ? formatCurrency(totalVolume) : "--"} highlight />
-          <StatCard label="top holder" value={hasData ? leaders[0].displayLabel : "--"} />
+          <StatCard label="top-PnL wallet" value={hasData ? leaders[0].displayLabel : "--"} />
         </section>
 
         <section className="surface-card overflow-x-auto rounded-[3px]">
@@ -71,7 +72,7 @@ export function LeadersSurface() {
               <span>wallet</span>
               <span>exposure</span>
               <span>markets</span>
-              <span>signal</span>
+              <span>exposure</span>
               <span>trend</span>
               <span />
             </TableHeader>
@@ -84,10 +85,15 @@ export function LeadersSurface() {
               >
                 <span className="font-mono text-[12px] text-ink-3">{String(leader.rank).padStart(2, "0")}</span>
                 <span className="h-6 w-6 border border-ink-3" />
-                <span className="truncate font-mono text-[12px] text-ink">{leader.displayLabel}</span>
+                <span className="min-w-0">
+                  <span className="block truncate font-mono text-[12px] text-ink">{leader.displayLabel}</span>
+                  <SignalBadgeStrip labels={globalPnlLabels(leader.leaderboardLabels)} limit={2} compact className="mt-1" />
+                </span>
                 <span className="font-mono text-[11px] text-ink-2">{formatCurrency(leader.totalCurrentSize)}</span>
                 <span className="font-mono text-[11px] text-ink-2">{leader.activeMarkets}</span>
-                <span className="font-mono text-[11px] uppercase text-ink-2">{leader.outcomes[0] ?? "--"}</span>
+                <span className={`font-mono text-[11px] uppercase ${outcomeTextClass(leader.outcomes[0])}`}>
+                  {leader.outcomes[0] ?? "--"}
+                </span>
                 <SparkLine up={(leader.realizedPnl ?? leader.totalCurrentSize) >= 0} width={120} />
                 <span className="justify-self-end border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
                   view
@@ -111,7 +117,7 @@ export function FeedSurface() {
   const hasData = feed.length > 0;
   const trending = Array.from(new Map(feed.map((item) => [item.market.conditionId, item.market])).values()).slice(0, 4);
   const totalFlow = feed.reduce((sum, item) => sum + item.size, 0);
-  const largePrint = [...feed].sort((a, b) => b.size - a.size)[0] ?? null;
+  const largestExposure = [...feed].sort((a, b) => b.size - a.size)[0] ?? null;
 
   return (
     <Frame>
@@ -122,12 +128,12 @@ export function FeedSurface() {
             <div className="flex flex-col gap-[6px]">
               <Eyebrow>{"// FEED ▸ STREAM"}</Eyebrow>
               <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-                LIVE HOLDER FEED
+                TOP-PNL EXPOSURE FEED
               </h1>
               <div className="flex items-center gap-[6px]">
                 <span className="live-dot" />
                 <span className="font-mono text-[10px] uppercase tracking-[1px] text-ink-2">
-                  stream surface
+                  exposure surface
                 </span>
               </div>
             </div>
@@ -140,9 +146,9 @@ export function FeedSurface() {
           </header>
 
           <section className="grid grid-cols-1 gap-3 border-b border-ink-3 bg-paper/70 p-4 sm:grid-cols-3 sm:p-5">
-            <TapeMetric label="prints" value={hasData ? String(feed.length) : "--"} />
-            <TapeMetric label="flow size" value={hasData ? formatCurrency(totalFlow) : "--"} tone="accent" />
-            <TapeMetric label="largest print" value={largePrint ? formatCurrency(largePrint.size) : "--"} />
+            <TapeMetric label="positions" value={hasData ? String(feed.length) : "--"} />
+            <TapeMetric label="exposure size" value={hasData ? formatCurrency(totalFlow) : "--"} tone="accent" />
+            <TapeMetric label="largest exposure" value={largestExposure ? formatCurrency(largestExposure.size) : "--"} />
           </section>
 
           <div>
@@ -158,7 +164,7 @@ export function FeedSurface() {
                   <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[1px]">
                     <span className="text-ink">{item.displayLabel}</span>
                     <span className="text-ink-2">{item.action}</span>
-                    <span className="text-accent">{item.outcome}</span>
+                    <span className={outcomeTextClass(item.outcome)}>{item.outcome}</span>
                     <span className="text-ink-3">{formatCurrency(item.size)}</span>
                   </div>
                   <p className="truncate font-mono text-[14px] text-ink">{item.market.question}</p>
@@ -191,7 +197,7 @@ export function FeedSurface() {
         <aside className="grid content-start gap-6 bg-paper-2 p-4 sm:p-5">
           <section className="grid gap-3">
             <h2 className="font-mono text-[9px] uppercase tracking-[1.4px] text-ink-3">
-              market tape
+              exposure markets
             </h2>
             {hasData ? trending.map((market) => (
               <Link key={market.conditionId} href={marketDetailPath(market)} className="surface-card flex items-center justify-between gap-3 rounded-[3px] px-3 py-3">
@@ -206,7 +212,7 @@ export function FeedSurface() {
             ))}
           </section>
           <div className="rounded-[3px] border border-dashed border-accent bg-[rgba(97,168,255,0.045)] p-3 font-mono text-[10px] uppercase tracking-[1px] text-accent">
-            live stream follows tracked holder activity
+            feed follows top-PnL wallet exposure
           </div>
         </aside>
       </main>
@@ -241,7 +247,7 @@ export function WalletsSurface({ category = "all" }: { category?: string }) {
           <div className="flex flex-col gap-[6px]">
             <Eyebrow>{"// WALLETS ▸ INDEX"}</Eyebrow>
             <h1 className="font-mono text-[20px] font-medium uppercase tracking-[1px] text-ink sm:text-[24px]">
-              {categoryLabel === "all" ? "HOLDER WALLETS" : `${categoryLabel} wallets`}
+              {categoryLabel === "all" ? "TOP-PNL WALLETS" : `${categoryLabel} wallets`}
             </h1>
           </div>
         </section>
@@ -344,7 +350,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
               <h1 className="truncate font-mono text-[22px] text-ink sm:text-[28px]">{displayWallet}</h1>
               <div className="mt-2 flex flex-wrap gap-2">
                 <Pill tone="accent">{hasData ? `rank ${detail?.rank}` : "rank"}</Pill>
-                <Pill>{detail?.categories?.[0] ?? "holder"}</Pill>
+                <Pill>{detail?.categories?.[0] ?? "top-PnL"}</Pill>
               </div>
             </div>
           </div>
@@ -366,12 +372,12 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatCard label="current exposure" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} highlight />
             <StatCard label="open markets" value={hasData ? String(detail?.activeMarkets ?? 0) : "--"} highlight />
-            <StatCard label="signal type" value={hasData ? "current" : "--"} />
-            <StatCard label="wallet source" value={hasData ? "holder" : "--"} />
+            <StatCard label="exposure type" value={hasData ? "current" : "--"} />
+            <StatCard label="wallet source" value={hasData ? "top-PnL" : "--"} />
           </div>
           <div className="surface-card rounded-[3px] p-4">
             <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
-              exposure over time
+              top-PnL exposure over time
             </div>
             <div className="flex h-[260px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft p-4">
               <SparkLine up={(detail?.totalCurrentSize ?? 0) >= 0} width={320} height={110} />
@@ -386,7 +392,7 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
               <span>side</span>
               <span>size</span>
               <span>entry / now</span>
-              <span>signal</span>
+              <span>exposure</span>
             </TableHeader>
             {hasData ? positions.map((position) => (
               <div
@@ -395,10 +401,14 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
                 style={{ gridTemplateColumns: "1fr 72px 96px 128px 100px" }}
               >
                 <span className="truncate font-mono text-[12px] text-ink">{position.question}</span>
-                <span className="font-mono text-[10px] uppercase text-accent">{position.outcome}</span>
+                <span className={`font-mono text-[10px] uppercase ${outcomeTextClass(position.outcome)}`}>
+                  {position.outcome}
+                </span>
                 <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.currentSize)}</span>
                 <span className="font-mono text-[10px] text-ink-2">avg {formatEntry(position.averageEntry)}</span>
-                <span className="font-mono text-[10px] uppercase text-ink-2">{position.outcome}</span>
+                <span className={`font-mono text-[10px] uppercase ${outcomeTextClass(position.outcome)}`}>
+                  {position.outcome}
+                </span>
               </div>
             )) : POSITION_ROWS.map((_, index) => (
               <div

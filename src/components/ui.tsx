@@ -1,6 +1,20 @@
 import clsx from "clsx";
 import type { ReactNode, HTMLAttributes } from "react";
 
+export function outcomeTextClass(outcome: string | null | undefined) {
+  const normalized = String(outcome ?? "").trim().toLowerCase();
+  if (normalized === "yes") return "text-[var(--positive)]";
+  if (normalized === "no") return "text-[var(--negative)]";
+  return "text-ink-2";
+}
+
+export function outcomeBgClass(outcome: string | null | undefined) {
+  const normalized = String(outcome ?? "").trim().toLowerCase();
+  if (normalized === "yes") return "bg-[var(--positive)]";
+  if (normalized === "no") return "bg-[var(--negative)]";
+  return "bg-accent";
+}
+
 export function Pill({
   children,
   tone = "ink",
@@ -22,6 +36,41 @@ export function Pill({
     >
       {children}
     </span>
+  );
+}
+
+export function SignalBadgeStrip({
+  labels,
+  limit = 3,
+  compact = false,
+  className,
+}: {
+  labels?: Array<{ id?: string; label: string; type?: string; rank?: number | null }>;
+  limit?: number;
+  compact?: boolean;
+  className?: string;
+}) {
+  const visibleLabels = (labels ?? []).slice(0, limit);
+  if (visibleLabels.length === 0) return null;
+
+  return (
+    <div className={clsx("flex min-w-0 flex-wrap gap-1", className)}>
+      {visibleLabels.map((label) => (
+        <span
+          key={`${label.id ?? label.label}-${label.rank ?? ""}`}
+          className={clsx(
+            "inline-flex max-w-full items-center truncate rounded-[2px] border font-mono uppercase tracking-[0.55px]",
+            compact ? "min-h-[18px] px-[5px] py-px text-[8px]" : "min-h-[21px] px-[6px] py-[2px] text-[9px]",
+            label.type === "global_pnl"
+              ? "border-accent bg-[rgba(97,168,255,0.1)] text-accent"
+              : "border-ink-3 bg-ink-bg-soft text-ink-2",
+          )}
+          title={typeof label.rank === "number" ? `${label.label} rank ${label.rank}` : label.label}
+        >
+          {label.label}
+        </span>
+      ))}
+    </div>
   );
 }
 

@@ -3,7 +3,7 @@ import { getCachedValue, setCachedValue } from "../../src/cache.js";
 import { sendJson, SHORT_CACHE_HEADERS } from "../../src/http.js";
 import { readMarketSnapshot, saveMarketSnapshot } from "../../src/services/snapshotStore.js";
 
-const MARKETS_CACHE_TTL_MS = 5 * 60 * 1000;
+const MARKETS_CACHE_TTL_MS = 2 * 60 * 1000;
 const LAST_GOOD_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_NAMESPACE = "smart-money-markets";
 const LAST_GOOD_NAMESPACE = "smart-money-last-good";
@@ -29,9 +29,9 @@ export default async function handler(request, response) {
 
   try {
     const { scanner } = getAppContext();
-    const result = await scanner.scanDefaultMarkets();
-    if (dataSource === "preference" && result.markets.length === 0) {
-      return sendLastKnownOrUnavailable(response, "Preference returned no markets. This often happens when MCP quota is exhausted.");
+    const result = await scanner.scanDefaultMarkets({ refresh: request.query?.refresh === "1" });
+    if (dataSource !== "mock" && result.markets.length === 0) {
+      return sendLastKnownOrUnavailable(response, dataSource, `${dataSource} returned no markets.`);
     }
     const payload = {
       dataSource,
@@ -39,31 +39,31 @@ export default async function handler(request, response) {
       upstreamStatus: { status: "ok", reason: null },
       ...result,
     };
-    if (dataSource === "preference") await saveLastGoodSnapshot(payload);
+    if (dataSource !== "mock") await saveLastGoodSnapshot(dataSource, payload);
     return sendCachedPayload(response, cacheKey, payload);
   } catch (error) {
     console.error(error);
-    if (dataSource === "preference") return sendLastKnownOrUnavailable(response, error?.message ?? "Preference scan failed.");
+    if (dataSource !== "mock") return sendLastKnownOrUnavailable(response, dataSource, error?.message ?? `${dataSource} scan failed.`);
     return sendJson(response, { error: "Failed to scan markets" }, 500);
   }
 }
 
-async function sendLastKnownOrUnavailable(response, reason) {
-  const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, "preference");
+async function sendLastKnownOrUnavailable(response, dataSource, reason) {
+  const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, dataSource);
   if (lastGood) {
     return sendLastGood(response, lastGood, reason, "last-good");
   }
 
-  const storedLastGood = await readMarketSnapshot("default:preference");
+  const storedLastGood = await readMarketSnapshot(`default:${dataSource}`);
   if (storedLastGood) {
-    setCachedValue(LAST_GOOD_NAMESPACE, "preference", storedLastGood.value, LAST_GOOD_TTL_MS);
+    setCachedValue(LAST_GOOD_NAMESPACE, dataSource, storedLastGood.value, LAST_GOOD_TTL_MS);
     return sendLastGood(response, storedLastGood, reason, "stored-last-good");
   }
 
   return sendJson(
     response,
     {
-      dataSource: "preference",
+      dataSource,
       effectiveDataSource: "none",
       upstreamStatus: {
         status: "unavailable",
@@ -80,9 +80,9 @@ async function sendLastKnownOrUnavailable(response, reason) {
   );
 }
 
-async function saveLastGoodSnapshot(payload) {
-  setCachedValue(LAST_GOOD_NAMESPACE, "preference", payload, LAST_GOOD_TTL_MS);
-  await saveMarketSnapshot("default:preference", payload);
+async function saveLastGoodSnapshot(dataSource, payload) {
+  setCachedValue(LAST_GOOD_NAMESPACE, dataSource, payload, LAST_GOOD_TTL_MS);
+  await saveMarketSnapshot(`default:${dataSource}`, payload);
 }
 
 function sendLastGood(response, lastGood, reason, status) {
