@@ -13,6 +13,7 @@ export function getPool() {
       connectionString: process.env.DATABASE_URL,
       ssl: { rejectUnauthorized: false },
       max: Number(process.env.PG_POOL_MAX ?? 2),
+      connectionTimeoutMillis: Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? 5000),
     });
     pool.on("error", (error) => {
       console.warn("Postgres pool connection error", error?.code ?? "", error?.message ?? String(error));

@@ -3,10 +3,15 @@ import { normalizeCategories, normalizeWallet } from "../domain/polymarketSmartM
 
 const GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 const DATA_BASE_URL = "https://data-api.polymarket.com";
+const CLOB_BASE_URL = "https://clob.polymarket.com";
 const TOP_MARKET_LIMIT = 40;
 const MARKET_POSITION_LIMIT = 100;
 const CLOSED_POSITION_LIMIT = 50;
+const CURRENT_POSITION_LIMIT = 50;
+const LEADERBOARD_LIMIT = 50;
+const ALL_TIME_PNL_COHORT_LIMIT = 1000;
 const DEFAULT_MAX_CLOSED_POSITION_PAGES = Number(process.env.POLYMARKET_CLOSED_POSITION_MAX_PAGES ?? 20);
+const DEFAULT_MAX_CURRENT_POSITION_PAGES = Number(process.env.POLYMARKET_CURRENT_POSITION_MAX_PAGES ?? 20);
 
 export class PolymarketApi {
   constructor({
@@ -29,7 +34,10 @@ export class PolymarketApi {
       requestErrors: [],
       topMarketsFetched: 0,
       marketPositionsFetched: 0,
+      currentPositionsFetched: 0,
       closedPositionsFetched: 0,
+      leaderboardWalletsFetched: 0,
+      priceHistoryFetched: 0,
     };
   }
 
@@ -109,12 +117,42 @@ export class PolymarketApi {
     return { holders: positions, fetchedAt };
   }
 
-  async listClosedPositionsForWallet(walletValue) {
+  async listCurrentPositionsForWallet(
+    walletValue,
+    {
+      limit = CURRENT_POSITION_LIMIT,
+      maxPages = DEFAULT_MAX_CURRENT_POSITION_PAGES,
+      sizeThreshold = Number(process.env.POLYMARKET_CURRENT_POSITION_SIZE_THRESHOLD ?? 0),
+    } = {},
+  ) {
+    const wallet = normalizeWallet(walletValue);
+    const fetchedAt = new Date().toISOString();
+    if (!wallet) return { wallet: walletValue, positions: [], fetchedAt };
+
+    const positions = [];
+    for (let page = 0; page < maxPages; page += 1) {
+      const offset = page * limit;
+      const payload = await this.requestJson(DATA_BASE_URL, "/positions", {
+        user: wallet,
+        limit,
+        offset,
+        sizeThreshold,
+      });
+      const rows = arrayFrom(payload, ["positions", "data", "results"]);
+      positions.push(...rows.map((row) => normalizeCurrentPosition(row, wallet)).filter(Boolean));
+      if (rows.length < limit) break;
+    }
+
+    this.diagnostics.currentPositionsFetched += positions.length;
+    return { wallet, positions, fetchedAt };
+  }
+
+  async listClosedPositionsForWallet(walletValue, { maxPages = DEFAULT_MAX_CLOSED_POSITION_PAGES } = {}) {
     const wallet = normalizeWallet(walletValue);
     if (!wallet) return { wallet: walletValue, positions: [] };
 
     const positions = [];
-    for (let page = 0; page < DEFAULT_MAX_CLOSED_POSITION_PAGES; page += 1) {
+    for (let page = 0; page < maxPages; page += 1) {
       const offset = page * CLOSED_POSITION_LIMIT;
       const payload = await this.requestJson(DATA_BASE_URL, "/closed-positions", {
         user: wallet,
@@ -130,6 +168,111 @@ export class PolymarketApi {
 
     this.diagnostics.closedPositionsFetched += positions.length;
     return { wallet, positions };
+  }
+
+  async listLeaderboard({
+    category = "OVERALL",
+    timePeriod = "MONTH",
+    orderBy = "PNL",
+    limit = LEADERBOARD_LIMIT,
+    offset = 0,
+  } = {}) {
+    const payload = await this.requestJson(DATA_BASE_URL, "/v1/leaderboard", {
+      category,
+      timePeriod,
+      orderBy,
+      limit,
+      offset,
+    });
+    const rows = arrayFrom(payload, ["data", "results"]);
+    const wallets = rows
+      .map((row) => ({
+        wallet: normalizeWallet(row.proxyWallet ?? row.wallet ?? row.user),
+        userName: row.userName ?? null,
+        rank: toNumber(row.rank),
+        pnl: toNumber(row.pnl),
+        volume: toNumber(row.vol ?? row.volume),
+        category,
+        timePeriod,
+        orderBy,
+        raw: row,
+      }))
+      .filter((row) => row.wallet);
+    this.diagnostics.leaderboardWalletsFetched += wallets.length;
+    return { wallets };
+  }
+
+  async listAllTimePnlLeaderboardCohort({
+    limit = LEADERBOARD_LIMIT,
+    maxRows = ALL_TIME_PNL_COHORT_LIMIT,
+  } = {}) {
+    const fetchedAt = new Date().toISOString();
+    const byWallet = new Map();
+    const pageSize = Math.min(limit, LEADERBOARD_LIMIT);
+    for (let offset = 0; offset < maxRows; offset += pageSize) {
+      const { wallets } = await this.listLeaderboard({
+        category: "OVERALL",
+        timePeriod: "ALL",
+        orderBy: "PNL",
+        limit: pageSize,
+        offset,
+      });
+      for (const row of wallets) {
+        const current = byWallet.get(row.wallet) ?? { wallet: row.wallet, sources: [] };
+        current.sources.push({
+          category: "OVERALL",
+          timePeriod: "ALL",
+          orderBy: "PNL",
+          rank: row.rank,
+          pnl: row.pnl,
+          volume: row.volume,
+        });
+        byWallet.set(row.wallet, current);
+      }
+      if (wallets.length < pageSize) break;
+    }
+    return { wallets: Array.from(byWallet.values()), fetchedAt };
+  }
+
+  async discoverLeaderboardWallets({
+    categories = ["OVERALL", "POLITICS", "SPORTS", "CRYPTO", "CULTURE", "WEATHER", "ECONOMICS", "TECH", "FINANCE"],
+    timePeriods = ["ALL"],
+    orderBys = ["PNL", "VOL"],
+    limit = LEADERBOARD_LIMIT,
+    maxRowsPerSlice = Number(process.env.POLYMARKET_LEADERBOARD_MAX_ROWS_PER_SLICE ?? 1000),
+  } = {}) {
+    const byWallet = new Map();
+    for (const category of categories) {
+      for (const timePeriod of timePeriods) {
+        for (const orderBy of orderBys) {
+          for (let offset = 0; offset < maxRowsPerSlice; offset += limit) {
+            const { wallets } = await this.listLeaderboard({ category, timePeriod, orderBy, limit, offset });
+            for (const row of wallets) {
+              const current = byWallet.get(row.wallet) ?? { wallet: row.wallet, sources: [] };
+              current.sources.push({ category, timePeriod, orderBy, rank: row.rank, pnl: row.pnl, volume: row.volume });
+              byWallet.set(row.wallet, current);
+            }
+            if (wallets.length < limit) break;
+          }
+        }
+      }
+    }
+    return { wallets: Array.from(byWallet.values()) };
+  }
+
+  async getPricesHistory({ market, startTs, endTs, interval = "1h", fidelity = 60 }) {
+    const payload = await this.requestJson(CLOB_BASE_URL, "/prices-history", {
+      market,
+      startTs,
+      endTs,
+      interval,
+      fidelity,
+    });
+    const history = arrayFrom(payload, ["history", "data", "results"])
+      .map((row) => ({ t: toNumber(row.t ?? row.timestamp), p: toNumber(row.p ?? row.price) }))
+      .filter((row) => row.t !== null && row.p !== null);
+    this.diagnostics.priceHistoryFetched += history.length;
+    return { history };
   }
 
   async probeTrendingMarkets() {
@@ -287,6 +430,50 @@ function normalizeOpenPosition(position, conditionId, token) {
     conditionId: position.conditionId ?? conditionId,
     verified: Boolean(position.verified),
     raw: position,
+  };
+}
+
+function normalizeCurrentPosition(row, wallet) {
+  if (!row || typeof row !== "object") return null;
+  const normalizedWallet = normalizeWallet(row.proxyWallet ?? row.wallet ?? row.user ?? wallet);
+  if (!normalizedWallet) return null;
+  const conditionId = row.conditionId ?? row.condition_id ?? row.conditionID ?? row.market ?? row.marketId ?? null;
+  if (!conditionId) return null;
+  const size = toNumber(row.size ?? row.amount ?? row.quantity);
+  if (!size || size <= 0) return null;
+  const currentPrice = toNumber(row.curPrice ?? row.currPrice ?? row.currentPrice ?? row.price);
+  const averageEntry = toNumber(row.avgPrice ?? row.averageEntry ?? row.average_entry);
+  const currentValue = toNumber(row.currentValue ?? row.value) ?? (typeof currentPrice === "number" ? size * currentPrice : null);
+  const title = row.title ?? row.question ?? row.marketTitle ?? null;
+  const slug = row.slug ?? row.marketSlug ?? row.market_slug ?? row.eventSlug ?? null;
+  const outcome = row.outcome ?? outcomeName(row.outcomeIndex);
+  const currentPrices = {};
+  if (outcome && typeof currentPrice === "number") currentPrices[String(outcome).toUpperCase()] = currentPrice;
+  return {
+    wallet: normalizedWallet,
+    proxyWallet: normalizedWallet,
+    conditionId,
+    asset: row.asset ?? row.tokenId ?? row.token ?? null,
+    outcome,
+    outcomeIndex: toNumber(row.outcomeIndex),
+    size,
+    averageEntry,
+    currentPrice,
+    currentValue: currentValue === null ? null : Math.round(currentValue * 10000) / 10000,
+    cashPnl: toNumber(row.cashPnl),
+    realizedPnl: toNumber(row.realizedPnl),
+    totalPnl: toNumber(row.totalPnl),
+    totalBought: toNumber(row.totalBought),
+    question: title,
+    title,
+    marketSlug: slug,
+    slug,
+    eventSlug: row.eventSlug ?? null,
+    endDate: row.endDate ?? null,
+    currentPrices,
+    active: row.active === undefined ? true : toBoolean(row.active),
+    closed: row.closed === undefined ? false : toBoolean(row.closed),
+    raw: row,
   };
 }
 

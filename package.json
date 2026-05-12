@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev.mjs",
+    "dev:ui": "next dev",
     "api:dev": "node src/server.js",
     "test": "node --test --test-concurrency=1",
     "typecheck": "tsc --noEmit",

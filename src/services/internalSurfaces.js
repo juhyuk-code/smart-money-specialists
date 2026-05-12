@@ -31,6 +31,7 @@ export function buildLeaders(markets) {
       last90dPnl: wallet.performanceSamples > 0 ? wallet.last90dPnl : null,
       closedMarkets: wallet.performanceSamples > 0 ? wallet.closedMarkets : null,
       roi: wallet.roiSamples > 0 ? wallet.roiTotal / wallet.roiSamples : null,
+      leaderboardLabels: Array.from(wallet.leaderboardLabels.values()).sort(compareLeaderboardLabels),
       categories: Array.from(wallet.categories).sort(),
       markets: Array.from(wallet.markets.values()),
       outcomes: Array.from(wallet.outcomes).sort(),
@@ -120,7 +121,7 @@ function collectWallets(markets) {
         current.categories.add(specialist.category ?? market.parentTags?.[0] ?? "market");
         current.outcomes.add(specialist.currentOutcome);
         current.activeMarkets += 1;
-        current.totalCurrentSize += specialist.currentSize ?? 0;
+        current.totalCurrentSize += specialist.costBasis ?? specialist.currentValue ?? specialist.currentSize ?? 0;
         if (typeof specialist.realizedPnl === "number") {
           current.realizedPnl += specialist.realizedPnl;
           current.performanceSamples += 1;
@@ -131,15 +132,25 @@ function collectWallets(markets) {
           current.roiTotal += specialist.roi;
           current.roiSamples += 1;
         }
+        for (const label of specialist.leaderboardLabels ?? []) {
+          const existing = current.leaderboardLabels.get(label.id);
+          if (!existing || (label.rank ?? Infinity) < (existing.rank ?? Infinity)) {
+            current.leaderboardLabels.set(label.id, label);
+          }
+        }
         current.markets.set(market.conditionId, {
           conditionId: market.conditionId,
           marketSlug: market.marketSlug,
           question: market.question,
           outcome: specialist.currentOutcome,
           currentSize: specialist.currentSize,
+          shares: specialist.shares ?? specialist.currentSize,
+          costBasis: specialist.costBasis ?? null,
+          currentValue: specialist.currentValue ?? null,
           averageEntry: specialist.averageEntry,
           realizedPnl: specialist.realizedPnl,
           roi: specialist.roi,
+          leaderboardLabels: specialist.leaderboardLabels ?? [],
           volume24h: market.volume24h,
           parentTags: market.parentTags,
           currentPrices: market.currentPrices,
@@ -167,6 +178,20 @@ function createWalletRecord(specialist) {
     performanceSamples: 0,
     roiTotal: 0,
     roiSamples: 0,
+    leaderboardLabels: new Map(),
     markets: new Map(),
   };
+}
+
+function compareLeaderboardLabels(a, b) {
+  const tierDelta = leaderboardTier(a) - leaderboardTier(b);
+  if (tierDelta !== 0) return tierDelta;
+  return (a.rank ?? Infinity) - (b.rank ?? Infinity);
+}
+
+function leaderboardTier(label) {
+  if (label.id === "top_100_pnl") return 0;
+  if (label.id === "top_250_pnl") return 1;
+  if (label.id === "top_1000_pnl") return 2;
+  return 3;
 }
