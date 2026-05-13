@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildFeed, buildLeaders, buildMarketDetail, buildWalletDetail, buildWalletIndex } from "../src/services/internalSurfaces.js";
+import {
+  buildEnrichedWalletDetail,
+  buildFeed,
+  buildLeaders,
+  buildMarketDetail,
+  buildWalletDetail,
+  buildWalletIndex,
+} from "../src/services/internalSurfaces.js";
 
 const markets = [
   {
@@ -103,6 +110,58 @@ test("buildWalletDetail returns positions for one wallet", () => {
   const wallet = buildWalletDetail(markets, "0xabc");
   assert.equal(wallet.positions.length, 2);
   assert.equal(wallet.positions[0].marketSlug, "market-one");
+});
+
+test("buildEnrichedWalletDetail merges direct wallet data into the profile contract", async () => {
+  const walletId = "0xabc0000000000000000000000000000000000001";
+  const result = await buildEnrichedWalletDetail(markets, walletId, {
+    now: new Date("2026-05-13T00:00:00.000Z"),
+    store: {
+      readLeaderboardSourcesByWallets: async () => new Map([
+        [walletId, [{ category: "OVERALL", timePeriod: "ALL", orderBy: "PNL", rank: 42, pnl: 5000 }]],
+      ]),
+    },
+    api: {
+      listCurrentPositionsForWallet: async () => ({
+        wallet: walletId,
+        fetchedAt: "2026-05-12T00:00:00.000Z",
+        positions: [
+          {
+            wallet: walletId,
+            conditionId: "condition-direct",
+            marketSlug: "direct-market",
+            slug: "direct-market",
+            question: "Direct current market?",
+            title: "Direct current market?",
+            outcome: "YES",
+            size: 20,
+            currentValue: 12,
+            averageEntry: 0.4,
+            currentPrice: 0.6,
+          },
+        ],
+      }),
+      listClosedPositionsForWallet: async () => ({
+        wallet: walletId,
+        positions: [
+          { wallet: walletId, conditionId: "old-win", title: "Old win", slug: "old-win", outcome: "YES", realizedPnl: 200, totalBought: 500, timestamp: 1764547200 },
+          { wallet: walletId, conditionId: "recent-win", title: "Recent win", slug: "recent-win", outcome: "NO", realizedPnl: 100, totalBought: 200, timestamp: 1777593600 },
+          { wallet: walletId, conditionId: "ninety-loss", title: "90D loss", slug: "ninety-loss", outcome: "YES", realizedPnl: -20, totalBought: 100, timestamp: 1772323200 },
+        ],
+      }),
+    },
+  });
+
+  assert.equal(result.wallet, walletId);
+  assert.equal(result.polymarketProfileUrl, `https://polymarket.com/profile/${walletId}`);
+  assert.equal(result.positions[0].conditionId, "condition-direct");
+  assert.equal(result.positions[0].marketSlug, "direct-market");
+  assert.deepEqual(result.closedPositions.map((position) => position.conditionId), ["old-win", "recent-win", "ninety-loss"]);
+  assert.equal(result.pnlSummary.last30d.realizedPnl, 100);
+  assert.equal(result.pnlSummary.last90d.realizedPnl, 80);
+  assert.equal(result.pnlSummary.lifetime.realizedPnl, 280);
+  assert.equal(result.pnlSeries.length, 3);
+  assert.ok(result.labels.some((label) => label.id === "top_100_pnl"));
 });
 
 test("buildFeed returns specialist market events newest first", () => {

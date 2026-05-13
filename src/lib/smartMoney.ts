@@ -169,8 +169,44 @@ export type Leader = {
 };
 
 export type WalletRow = Omit<Leader, "markets" | "outcomes" | "closedMarkets">;
-export type WalletDetail = Leader & {
+export type PnlSummaryWindow = {
+  realizedPnl: number;
+  totalBought: number;
+  markets: number;
+};
+export type WalletClosedPosition = {
+  wallet?: string | null;
+  conditionId: string;
+  marketSlug?: string | null;
+  slug?: string | null;
+  question?: string | null;
+  title?: string | null;
+  outcome?: string | null;
+  averageEntry?: number | null;
+  totalBought?: number | null;
+  realizedPnl?: number | null;
+  timestamp?: number | string | null;
+  closedAt?: string | null;
+};
+export type WalletPnlPoint = {
+  conditionId: string;
+  timestamp?: number | string | null;
+  date: string | null;
+  realizedPnl: number;
+  cumulativePnl: number;
+};
+export type WalletDetail = Omit<Leader, "rank"> & {
+  rank: number | null;
   positions: Leader["markets"];
+  pnlSummary?: {
+    last30d: PnlSummaryWindow;
+    last90d: PnlSummaryWindow;
+    lifetime: PnlSummaryWindow;
+  };
+  pnlSeries?: WalletPnlPoint[];
+  closedPositions?: WalletClosedPosition[];
+  labels?: LeaderboardLabel[];
+  polymarketProfileUrl?: string;
 };
 
 export type FeedEvent = {
@@ -279,13 +315,92 @@ function isWalletDetail(value: unknown): value is WalletDetail {
   return Boolean(value && typeof value === "object" && "wallet" in value);
 }
 
-export async function fetchMarkets(): Promise<MarketsPayload | null> {
-  const response = await fetch("/api/smart-money/markets", {
+export type SmartMoneyFetchErrorCode = "timeout" | "http" | "network" | "invalid_json";
+
+export class SmartMoneyFetchError extends Error {
+  code: SmartMoneyFetchErrorCode;
+  status?: number;
+  cause?: unknown;
+
+  constructor(message: string, code: SmartMoneyFetchErrorCode, options: { status?: number; cause?: unknown } = {}) {
+    super(message);
+    this.name = "SmartMoneyFetchError";
+    this.code = code;
+    this.status = options.status;
+    this.cause = options.cause;
+  }
+}
+
+export type SmartMoneyFetchOptions = {
+  timeoutMs?: number;
+};
+
+const DEFAULT_FETCH_TIMEOUT_MS = 8000;
+
+type BoundedFetchOptions = RequestInit & SmartMoneyFetchOptions;
+
+function isAbortError(error: unknown) {
+  return Boolean(error && typeof error === "object" && "name" in error && (error as { name?: string }).name === "AbortError");
+}
+
+async function boundedFetchJson<T>(url: string, init: BoundedFetchOptions = {}): Promise<{ response: Response; data: T }> {
+  const { timeoutMs = DEFAULT_FETCH_TIMEOUT_MS, signal: upstreamSignal, ...fetchInit } = init;
+  const controller = new AbortController();
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let didTimeout = false;
+
+  const abortForTimeout = () => {
+    didTimeout = true;
+    controller.abort();
+  };
+
+  if (timeoutMs > 0) timeoutId = setTimeout(abortForTimeout, timeoutMs);
+
+  const abortFromUpstream = () => controller.abort(upstreamSignal?.reason);
+  if (upstreamSignal?.aborted) abortFromUpstream();
+  else upstreamSignal?.addEventListener("abort", abortFromUpstream, { once: true });
+
+  try {
+    const response = await fetch(url, {
+      ...fetchInit,
+      signal: controller.signal,
+    });
+    let data: T;
+    try {
+      data = await response.json();
+    } catch (error) {
+      throw new SmartMoneyFetchError("Smart money response was not valid JSON.", "invalid_json", {
+        status: response.status,
+        cause: error,
+      });
+    }
+    if (!response.ok) {
+      throw new SmartMoneyFetchError(`Smart money request failed with status ${response.status}.`, "http", {
+        status: response.status,
+      });
+    }
+    return { response, data };
+  } catch (error) {
+    if (error instanceof SmartMoneyFetchError) throw error;
+    if (didTimeout || isAbortError(error)) {
+      throw new SmartMoneyFetchError("Smart money request timed out.", "timeout", { cause: error });
+    }
+    throw new SmartMoneyFetchError("Smart money request failed.", "network", { cause: error });
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+    upstreamSignal?.removeEventListener("abort", abortFromUpstream);
+  }
+}
+
+type MarketsApiResponse = MarketsPayload & { markets?: SmartMoneyMarket[] };
+
+export async function fetchMarkets(options: SmartMoneyFetchOptions = {}): Promise<MarketsPayload | null> {
+  const { data } = await boundedFetchJson<MarketsApiResponse>("/api/smart-money/markets", {
     headers: { accept: "application/json" },
     cache: "no-store",
+    timeoutMs: options.timeoutMs,
   });
-  const data = await response.json();
-  if (!response.ok || !Array.isArray(data.markets) || data.markets.length === 0) return null;
+  if (!Array.isArray(data.markets) || data.markets.length === 0) return null;
   return {
     dataSource: data.dataSource,
     registryRefreshedAt: data.registryRefreshedAt,
@@ -296,17 +411,17 @@ export async function fetchMarkets(): Promise<MarketsPayload | null> {
   };
 }
 
-export async function scanCustomMarket(url: string): Promise<MarketsPayload | null> {
-  const response = await fetch("/api/smart-money/custom-scan", {
+export async function scanCustomMarket(url: string, options: SmartMoneyFetchOptions = {}): Promise<MarketsPayload | null> {
+  const { data } = await boundedFetchJson<MarketsApiResponse>("/api/smart-money/custom-scan", {
     method: "POST",
     headers: {
       accept: "application/json",
       "content-type": "application/json",
     },
     body: JSON.stringify({ url }),
+    timeoutMs: options.timeoutMs,
   });
-  const data = await response.json();
-  if (!response.ok || !Array.isArray(data.markets) || data.markets.length === 0) return null;
+  if (!Array.isArray(data.markets) || data.markets.length === 0) return null;
   return {
     dataSource: data.dataSource,
     registryRefreshedAt: data.registryRefreshedAt ?? data.markets[0]?.registryRefreshedAt ?? null,
@@ -317,10 +432,12 @@ export async function scanCustomMarket(url: string): Promise<MarketsPayload | nu
   };
 }
 
-export async function fetchLeaders(): Promise<Leader[]> {
+export async function fetchLeaders(options: SmartMoneyFetchOptions = {}): Promise<Leader[]> {
   try {
-    const response = await fetch("/api/smart-money/leaders", { headers: { accept: "application/json" } });
-    const data = await response.json();
+    const { data } = await boundedFetchJson<{ leaders?: Leader[] }>("/api/smart-money/leaders", {
+      headers: { accept: "application/json" },
+      timeoutMs: options.timeoutMs,
+    });
     const leaders = Array.isArray(data.leaders) ? data.leaders : [];
     saveClientSnapshot(LEADERS_SNAPSHOT_KEY, leaders, isLeaderArray);
     return leaders.length > 0 ? leaders : readClientSnapshot(LEADERS_SNAPSHOT_KEY, isLeaderArray) ?? [];
@@ -329,10 +446,12 @@ export async function fetchLeaders(): Promise<Leader[]> {
   }
 }
 
-export async function fetchFeed(): Promise<FeedEvent[]> {
+export async function fetchFeed(options: SmartMoneyFetchOptions = {}): Promise<FeedEvent[]> {
   try {
-    const response = await fetch("/api/smart-money/feed", { headers: { accept: "application/json" } });
-    const data = await response.json();
+    const { data } = await boundedFetchJson<{ feed?: FeedEvent[] }>("/api/smart-money/feed", {
+      headers: { accept: "application/json" },
+      timeoutMs: options.timeoutMs,
+    });
     const feed = Array.isArray(data.feed) ? data.feed : [];
     saveClientSnapshot(FEED_SNAPSHOT_KEY, feed, isFeedArray);
     return feed.length > 0 ? feed : readClientSnapshot(FEED_SNAPSHOT_KEY, isFeedArray) ?? [];
@@ -341,10 +460,12 @@ export async function fetchFeed(): Promise<FeedEvent[]> {
   }
 }
 
-export async function fetchWallets(): Promise<WalletRow[]> {
+export async function fetchWallets(options: SmartMoneyFetchOptions = {}): Promise<WalletRow[]> {
   try {
-    const response = await fetch("/api/smart-money/wallets", { headers: { accept: "application/json" } });
-    const data = await response.json();
+    const { data } = await boundedFetchJson<{ wallets?: WalletRow[] }>("/api/smart-money/wallets", {
+      headers: { accept: "application/json" },
+      timeoutMs: options.timeoutMs,
+    });
     const wallets = Array.isArray(data.wallets) ? data.wallets : [];
     saveClientSnapshot(WALLETS_SNAPSHOT_KEY, wallets, isWalletArray);
     return wallets.length > 0 ? wallets : readClientSnapshot(WALLETS_SNAPSHOT_KEY, isWalletArray) ?? [];
@@ -353,13 +474,13 @@ export async function fetchWallets(): Promise<WalletRow[]> {
   }
 }
 
-export async function fetchWalletDetail(wallet: string): Promise<WalletDetail | null> {
+export async function fetchWalletDetail(wallet: string, options: SmartMoneyFetchOptions = {}): Promise<WalletDetail | null> {
   const cacheKey = `${WALLET_DETAIL_SNAPSHOT_PREFIX}${wallet.toLowerCase()}`;
   try {
-    const response = await fetch(`/api/smart-money/wallets/${encodeURIComponent(wallet)}`, {
+    const { data } = await boundedFetchJson<{ wallet?: WalletDetail }>(`/api/smart-money/wallets/${encodeURIComponent(wallet)}`, {
       headers: { accept: "application/json" },
+      timeoutMs: options.timeoutMs,
     });
-    const data = await response.json();
     if (data.wallet) saveClientSnapshot(cacheKey, data.wallet, isWalletDetail);
     return data.wallet ?? readClientSnapshot(cacheKey, isWalletDetail);
   } catch {
@@ -367,11 +488,11 @@ export async function fetchWalletDetail(wallet: string): Promise<WalletDetail | 
   }
 }
 
-export async function fetchMarketDetail(marketId: string): Promise<SmartMoneyMarket | null> {
-  const response = await fetch(`/api/smart-money/markets/${encodeURIComponent(marketId)}`, {
+export async function fetchMarketDetail(marketId: string, options: SmartMoneyFetchOptions = {}): Promise<SmartMoneyMarket | null> {
+  const { data } = await boundedFetchJson<{ market?: SmartMoneyMarket }>(`/api/smart-money/markets/${encodeURIComponent(marketId)}`, {
     headers: { accept: "application/json" },
+    timeoutMs: options.timeoutMs,
   });
-  const data = await response.json();
   return data.market ?? null;
 }
 

@@ -11,8 +11,9 @@ const LAST_GOOD_NAMESPACE = "smart-money-last-good";
 export default async function handler(request, response) {
   const { dataSource } = getAppContext();
   const cacheKey = dataSource;
+  const refreshRequested = request.query?.refresh === "1";
   const cached = getCachedValue(CACHE_NAMESPACE, cacheKey);
-  if (cached && request.query?.refresh !== "1") {
+  if (cached && !refreshRequested) {
     return sendJson(
       response,
       {
@@ -27,9 +28,16 @@ export default async function handler(request, response) {
     );
   }
 
+  if (!refreshRequested && dataSource !== "mock") {
+    const stalePayload = await readLastKnown(dataSource);
+    if (stalePayload) {
+      return sendLastGood(response, stalePayload.entry, `${dataSource} refresh was not requested.`, stalePayload.status);
+    }
+  }
+
   try {
     const { scanner } = getAppContext();
-    const result = await scanner.scanDefaultMarkets({ refresh: request.query?.refresh === "1" });
+    const result = await scanner.scanDefaultMarkets({ refresh: refreshRequested });
     if (dataSource !== "mock" && result.markets.length === 0) {
       return sendLastKnownOrUnavailable(response, dataSource, `${dataSource} returned no markets.`);
     }
@@ -49,15 +57,9 @@ export default async function handler(request, response) {
 }
 
 async function sendLastKnownOrUnavailable(response, dataSource, reason) {
-  const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, dataSource);
-  if (lastGood) {
-    return sendLastGood(response, lastGood, reason, "last-good");
-  }
-
-  const storedLastGood = await readMarketSnapshot(`default:${dataSource}`);
-  if (storedLastGood) {
-    setCachedValue(LAST_GOOD_NAMESPACE, dataSource, storedLastGood.value, LAST_GOOD_TTL_MS);
-    return sendLastGood(response, storedLastGood, reason, "stored-last-good");
+  const lastKnown = await readLastKnown(dataSource);
+  if (lastKnown) {
+    return sendLastGood(response, lastKnown.entry, reason, lastKnown.status);
   }
 
   return sendJson(
@@ -80,9 +82,33 @@ async function sendLastKnownOrUnavailable(response, dataSource, reason) {
   );
 }
 
+async function readLastKnown(dataSource) {
+  const lastGood = getCachedValue(LAST_GOOD_NAMESPACE, dataSource);
+  if (lastGood) return { entry: lastGood, status: "last-good" };
+
+  try {
+    const storedLastGood = await readMarketSnapshot(`default:${dataSource}`);
+    if (Array.isArray(storedLastGood?.value?.markets)) {
+      setCachedValue(LAST_GOOD_NAMESPACE, dataSource, storedLastGood.value, LAST_GOOD_TTL_MS);
+      return { entry: storedLastGood, status: "stored-last-good" };
+    }
+    if (storedLastGood) {
+      console.warn("Stored smart-money market snapshot is missing a markets array");
+    }
+  } catch (error) {
+    console.warn("Failed to read stored smart-money market snapshot", error?.message ?? String(error));
+  }
+
+  return null;
+}
+
 async function saveLastGoodSnapshot(dataSource, payload) {
   setCachedValue(LAST_GOOD_NAMESPACE, dataSource, payload, LAST_GOOD_TTL_MS);
-  await saveMarketSnapshot(`default:${dataSource}`, payload);
+  try {
+    await saveMarketSnapshot(`default:${dataSource}`, payload);
+  } catch (error) {
+    console.warn("Failed to save smart-money market snapshot", error?.message ?? String(error));
+  }
 }
 
 function sendLastGood(response, lastGood, reason, status) {

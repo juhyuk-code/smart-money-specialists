@@ -323,6 +323,38 @@ test("Polymarket adapter uses market positions for top outcome holders and pagin
   assert.equal(calls.filter((url) => url.pathname === "/closed-positions").length, 2);
 });
 
+test("Polymarket adapter saves raw payloads best-effort without blocking API results", async () => {
+  let resolveSave;
+  let saveStarted = false;
+  const savePromise = new Promise((resolve) => {
+    resolveSave = resolve;
+  });
+  const api = new PolymarketApi({
+    rateLimitMs: 0,
+    rawPayloadPersistence: "async",
+    store: {
+      saveRawPayload: async () => {
+        saveStarted = true;
+        await savePromise;
+      },
+    },
+    fetchImpl: async () => jsonResponse([{ conditionId: "0xmarket", question: "Question?", outcomes: ["Yes", "No"], outcomePrices: ["0.5", "0.5"] }]),
+  });
+
+  const { markets } = await Promise.race([
+    api.listTrendingMarkets(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("raw payload save blocked API result")), 50)),
+  ]);
+
+  assert.equal(markets.length, 1);
+  assert.equal(saveStarted, true);
+  assert.equal(api.getDiagnostics().rawPayloadsSaved, 0);
+  resolveSave();
+  await savePromise;
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(api.getDiagnostics().rawPayloadsSaved, 1);
+});
+
 test("Polymarket adapter discovers leaderboard wallets and reads price history", async () => {
   const calls = [];
   const api = new PolymarketApi({

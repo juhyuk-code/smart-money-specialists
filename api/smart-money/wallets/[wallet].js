@@ -1,10 +1,12 @@
+import { getAppContext } from "../../../src/appContext.js";
 import { sendJson, SHORT_CACHE_HEADERS } from "../../../src/http.js";
-import { buildWalletDetail, readDefaultMarketSnapshot } from "../../../src/services/internalSurfaces.js";
+import { buildEnrichedWalletDetail, buildWalletDetail, readDefaultMarketSnapshot } from "../../../src/services/internalSurfaces.js";
 
 export default async function handler(request, response) {
   try {
     const snapshot = await readDefaultMarketSnapshot();
-    const wallet = buildWalletDetail(snapshot.markets, request.query.wallet);
+    const { api, polymarketStore } = getAppContext();
+    const wallet = await readWalletDetail(snapshot.markets, request.query.wallet, { api, store: polymarketStore ?? api?.store });
     if (!wallet) {
       return sendJson(
         response,
@@ -34,4 +36,15 @@ export default async function handler(request, response) {
     console.error(error);
     return sendJson(response, { error: "Failed to build wallet detail" }, 500);
   }
+}
+
+async function readWalletDetail(markets, walletId, { api, store }) {
+  if (api || store) {
+    try {
+      return await buildEnrichedWalletDetail(markets, walletId, { api, store });
+    } catch (error) {
+      console.warn("Wallet enrichment failed; falling back to snapshot detail", error?.message ?? String(error));
+    }
+  }
+  return buildWalletDetail(markets, walletId);
 }

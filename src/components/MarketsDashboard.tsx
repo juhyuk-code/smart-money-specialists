@@ -24,38 +24,79 @@ import {
   readSnapshot,
   relativeTime,
   saveSnapshot,
+  SmartMoneyFetchError,
   type CohortFilter,
   type SmartMoneyMarket,
 } from "@/lib/smartMoney";
 
 const OVERVIEW_LIMIT = 40;
+const DASHBOARD_FETCH_TIMEOUT_MS = 8000;
+
+type DashboardDataStatus = "loading" | "refreshing" | "fresh" | "stale" | "timeout" | "error";
 
 export function MarketsDashboard() {
   const [markets, setMarkets] = useState<SmartMoneyMarket[]>([]);
   const [registryRefreshedAt, setRegistryRefreshedAt] = useState<string | null>(null);
+  const [snapshotSavedAt, setSnapshotSavedAt] = useState<string | null>(null);
+  const [dataStatus, setDataStatus] = useState<DashboardDataStatus>("loading");
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [cohortFilter, setCohortFilter] = useState<CohortFilter>("top_1000_pnl");
 
   useEffect(() => {
+    let cancelled = false;
     const snapshot = readSnapshot();
+    const hasSnapshot = Boolean(snapshot?.markets.length);
+
     if (snapshot) {
       setMarkets(snapshot.markets);
       setRegistryRefreshedAt(snapshot.registryRefreshedAt);
+      setSnapshotSavedAt(snapshot.savedAt);
+      setDataStatus("refreshing");
+      setStatusMessage("Showing cached markets while refreshing.");
+    } else {
+      setDataStatus("loading");
+      setStatusMessage("Loading market snapshot.");
     }
 
-    fetchMarkets()
+    fetchMarkets({ timeoutMs: DASHBOARD_FETCH_TIMEOUT_MS })
       .then((payload) => {
-        if (!payload) return;
+        if (cancelled) return;
+        if (!payload) {
+          setDataStatus(hasSnapshot ? "stale" : "error");
+          setStatusMessage(hasSnapshot
+            ? "Cached markets are still visible; the latest refresh returned no markets."
+            : "No markets were returned. Try refreshing again shortly.");
+          return;
+        }
         setMarkets(payload.markets);
         setRegistryRefreshedAt(payload.registryRefreshedAt);
+        setSnapshotSavedAt(new Date().toISOString());
+        setDataStatus("fresh");
+        setStatusMessage(null);
         saveSnapshot(payload);
       })
-      .catch(() => {
+      .catch((error) => {
+        if (cancelled) return;
+        const code = error instanceof SmartMoneyFetchError ? error.code : null;
         const fallback = readSnapshot();
-        if (!fallback) return;
-        setMarkets(fallback.markets);
-        setRegistryRefreshedAt(fallback.registryRefreshedAt);
+        const hasFallback = Boolean(fallback?.markets.length);
+        if (fallback) {
+          setMarkets(fallback.markets);
+          setRegistryRefreshedAt(fallback.registryRefreshedAt);
+          setSnapshotSavedAt(fallback.savedAt);
+        }
+        setDataStatus(code === "timeout" ? "timeout" : hasFallback ? "stale" : "error");
+        setStatusMessage(code === "timeout"
+          ? "Refresh timed out. Cached markets remain visible if available."
+          : hasFallback
+            ? "Refresh failed. Showing cached markets."
+            : "Market data could not be loaded. Check your connection and try again.");
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const openMarkets = useMemo(() => [...markets].filter(isOpenMarket), [markets]);
@@ -85,6 +126,7 @@ export function MarketsDashboard() {
 
   const leadMarket = visibleMarkets[0] ?? null;
   const gridMarkets = leadMarket ? visibleMarkets.slice(1) : visibleMarkets;
+  const hasMarketData = markets.length > 0;
 
   return (
     <Frame>
@@ -115,10 +157,13 @@ export function MarketsDashboard() {
               ))}
             </div>
           </div>
-          <div className="font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
-            {isCohortFallback
-              ? "Waiting for top-PnL cohort exposure snapshot · showing available markets"
-              : `Ranked by ${cohortLabel(cohortFilter)} top-PnL wallet exposure · volume display-only`}
+          <div className="flex flex-col gap-1 text-left font-mono text-[10px] uppercase tracking-[1px] text-ink-3 lg:text-right">
+            <span>
+              {isCohortFallback
+                ? "Waiting for top-PnL cohort exposure snapshot · showing available markets"
+                : `Ranked by ${cohortLabel(cohortFilter)} top-PnL wallet exposure · volume display-only`}
+            </span>
+            <DashboardFetchStatus status={dataStatus} message={statusMessage} hasData={hasMarketData} snapshotSavedAt={snapshotSavedAt} />
           </div>
         </section>
 
@@ -132,7 +177,12 @@ export function MarketsDashboard() {
             </section>
           </section>
         ) : (
-          <EmptyOverviewSurface registryRefreshedAt={registryRefreshedAt} />
+          <EmptyOverviewSurface
+            registryRefreshedAt={registryRefreshedAt}
+            status={dataStatus}
+            message={statusMessage}
+            hasMarketData={hasMarketData}
+          />
         )}
       </main>
     </Frame>
@@ -276,28 +326,99 @@ function gapColor(value: number | null) {
   return value >= 0 ? "text-[var(--positive)]" : "text-[var(--negative)]";
 }
 
-function EmptyOverviewSurface({ registryRefreshedAt }: { registryRefreshedAt: string | null }) {
+function DashboardFetchStatus({
+  status,
+  message,
+  hasData,
+  snapshotSavedAt,
+}: {
+  status: DashboardDataStatus;
+  message: string | null;
+  hasData: boolean;
+  snapshotSavedAt: string | null;
+}) {
+  const labelByStatus: Record<DashboardDataStatus, string> = {
+    loading: "Loading",
+    refreshing: "Refreshing",
+    fresh: "Live",
+    stale: "Stale",
+    timeout: "Timeout",
+    error: "Error",
+  };
+  const tone = status === "fresh"
+    ? "text-[var(--positive)]"
+    : status === "timeout" || status === "error"
+      ? "text-[var(--negative)]"
+      : "text-ink-3";
+  const freshness = snapshotSavedAt ? ` · cache ${relativeTime(snapshotSavedAt)}` : "";
+  const detail = message ?? (hasData ? "Showing current market snapshot." : "Waiting for market snapshot.");
+
+  return (
+    <span className={clsx("text-[9px]", tone)}>
+      {labelByStatus[status]}{freshness} · {detail}
+    </span>
+  );
+}
+
+function EmptyOverviewSurface({
+  registryRefreshedAt,
+  status,
+  message,
+  hasMarketData,
+}: {
+  registryRefreshedAt: string | null;
+  status: DashboardDataStatus;
+  message: string | null;
+  hasMarketData: boolean;
+}) {
+  const isWaiting = !hasMarketData && (status === "loading" || status === "refreshing");
+
   return (
     <section className="border border-dashed border-ink-3 bg-paper-2 p-4 sm:p-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, index) => (
-          <div key={index} className="surface-card min-h-[260px] p-4">
-            <div className="mb-4 grid grid-cols-[34px_1fr] gap-3">
-              <span className="h-8 w-8 border border-ink-3" />
-              <div className="grid gap-2">
-                <span className="skeleton-shimmer h-2 w-24 bg-ink-3" />
-                <span className="skeleton-shimmer h-3 w-full bg-ink-3" />
-                <span className="skeleton-shimmer h-3 w-4/5 bg-ink-3" />
+      {isWaiting ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className="surface-card min-h-[260px] p-4">
+              <div className="mb-4 grid grid-cols-[34px_1fr] gap-3">
+                <span className="h-8 w-8 border border-ink-3" />
+                <div className="grid gap-2">
+                  <span className="skeleton-shimmer h-2 w-24 bg-ink-3" />
+                  <span className="skeleton-shimmer h-3 w-full bg-ink-3" />
+                  <span className="skeleton-shimmer h-3 w-4/5 bg-ink-3" />
+                </div>
+              </div>
+              <div className="skeleton-shimmer mt-10 h-8 w-24 bg-ink-3" />
+              <div className="mt-8 grid gap-2">
+                <span className="h-[5px] w-full bg-ink-bg-soft" />
+                <span className="h-[5px] w-3/4 bg-ink-bg-soft" />
               </div>
             </div>
-            <div className="skeleton-shimmer mt-10 h-8 w-24 bg-ink-3" />
-            <div className="mt-8 grid gap-2">
-              <span className="h-[5px] w-full bg-ink-bg-soft" />
-              <span className="h-[5px] w-3/4 bg-ink-bg-soft" />
-            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="surface-card p-5 sm:p-7">
+          <div className="font-mono text-[11px] uppercase tracking-[1.4px] text-accent">
+            {hasMarketData ? "No matching markets" : status === "timeout" ? "Market request timed out" : "Market data unavailable"}
           </div>
-        ))}
-      </div>
+          <h2 className="mt-3 max-w-2xl font-mono text-[22px] leading-tight text-ink sm:text-[28px]">
+            {hasMarketData ? "Try a different search or cohort filter." : "No cached market snapshot is available yet."}
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-ink-2">
+            {hasMarketData
+              ? "Market data is loaded, but the current filters do not match any visible open markets."
+              : message ?? "The dashboard could not load market data. Refresh the page or try again after the API recovers."}
+          </p>
+          {!hasMarketData ? (
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 rounded-[2px] border border-ink-3 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.8px] text-ink-2 hover:border-accent hover:text-accent"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      )}
       <div className="mt-4 font-mono text-[10px] uppercase tracking-[1px] text-ink-3">
         Last snapshot {relativeTime(registryRefreshedAt)}
       </div>

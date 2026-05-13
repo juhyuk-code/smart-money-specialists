@@ -147,6 +147,43 @@ test("markets handler generates cohort exposure by default for Polymarket withou
   }
 });
 
+test("markets handler serves last-good cache without refreshing when refresh is absent", async () => {
+  process.env.DATA_SOURCE = "polymarket";
+  const originalFetch = globalThis.fetch;
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  let fetchCalls = 0;
+  globalThis.fetch = async (url) => {
+    fetchCalls += 1;
+    throw new Error(`Unexpected refresh for ${url}`);
+  };
+
+  try {
+    const { clearCache, setCachedValue } = await import("../src/cache.js");
+    const { resetAppContextForTests } = await import("../src/appContext.js");
+    clearCache();
+    setCachedValue("smart-money-last-good", "polymarket", {
+      dataSource: "polymarket",
+      effectiveDataSource: "polymarket",
+      registryRefreshedAt: "2026-05-13T00:00:00.000Z",
+      markets: [{ conditionId: "last-good-market", outcomes: [] }],
+    }, 24 * 60 * 60 * 1000);
+    resetAppContextForTests();
+    const { default: handler } = await import(`../api/smart-money/markets.js?case=last-good-no-refresh-${Date.now()}`);
+    const response = createResponse();
+    await handler({ query: {} }, response);
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.body.markets[0].conditionId, "last-good-market");
+    assert.equal(response.body.cache.status, "last-good");
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalDatabaseUrl) process.env.DATABASE_URL = originalDatabaseUrl;
+    else delete process.env.DATABASE_URL;
+  }
+});
+
 test("markets handler does not use mock fallback for Preference outages", async () => {
   process.env.DATA_SOURCE = "preference";
   process.env.PREFERENCE_MCP_URL = "https://example.test/mcp";

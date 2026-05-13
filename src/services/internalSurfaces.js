@@ -54,7 +54,7 @@ export function buildWalletIndex(markets) {
 }
 
 export function buildWalletDetail(markets, walletId) {
-  const normalized = decodeURIComponent(walletId).toLowerCase();
+  const normalized = normalizeWalletId(walletId);
   const leader = buildLeaders(markets).find((item) => {
     return item.wallet.toLowerCase() === normalized || item.displayLabel.toLowerCase() === normalized;
   });
@@ -63,6 +63,44 @@ export function buildWalletDetail(markets, walletId) {
   return {
     ...leader,
     positions: leader.markets,
+  };
+}
+
+export async function buildEnrichedWalletDetail(markets, walletId, { api = null, store = null, now = new Date() } = {}) {
+  const normalized = normalizeWalletId(walletId);
+  const snapshotDetail = buildWalletDetail(markets, normalized);
+  const [currentResult, closedResult, leaderboardSources] = await Promise.all([
+    typeof api?.listCurrentPositionsForWallet === "function" ? api.listCurrentPositionsForWallet(normalized) : null,
+    typeof api?.listClosedPositionsForWallet === "function" ? api.listClosedPositionsForWallet(normalized) : null,
+    typeof store?.readLeaderboardSourcesByWallets === "function"
+      ? store.readLeaderboardSourcesByWallets([normalized])
+      : new Map(),
+  ]);
+
+  const directPositions = Array.isArray(currentResult?.positions)
+    ? currentResult.positions.map(normalizeCurrentWalletPosition)
+    : [];
+  const closedPositions = (Array.isArray(closedResult?.positions) ? closedResult.positions : [])
+    .map(normalizeClosedWalletPosition)
+    .sort((a, b) => (b.realizedPnl ?? -Infinity) - (a.realizedPnl ?? -Infinity));
+  const sources = leaderboardSources?.get?.(normalized) ?? leaderboardSources?.get?.(walletId) ?? [];
+  const labels = mergeWalletLabels(snapshotDetail?.leaderboardLabels, sources);
+  const positions = directPositions.length > 0 ? directPositions : snapshotDetail?.positions ?? [];
+
+  if (!snapshotDetail && positions.length === 0 && closedPositions.length === 0 && labels.length === 0) return null;
+
+  const pnlSummary = buildPnlSummary(closedPositions, now);
+  return {
+    ...(snapshotDetail ?? createDirectWalletDetail(normalized)),
+    wallet: snapshotDetail?.wallet ?? normalized,
+    positions,
+    activeMarkets: positions.length,
+    totalCurrentSize: positions.reduce((sum, position) => sum + (position.costBasis ?? position.currentValue ?? position.currentSize ?? position.size ?? 0), 0),
+    closedPositions,
+    pnlSummary,
+    pnlSeries: buildPnlSeries(closedPositions),
+    labels,
+    polymarketProfileUrl: `https://polymarket.com/profile/${normalized}`,
   };
 }
 
@@ -107,6 +145,143 @@ export function buildFeed(markets) {
       if (bTime !== aTime) return bTime - aTime;
       return b.size - a.size;
     });
+}
+
+function normalizeWalletId(walletId) {
+  return decodeURIComponent(String(walletId ?? "")).toLowerCase();
+}
+
+function createDirectWalletDetail(wallet) {
+  return {
+    rank: null,
+    wallet,
+    displayLabel: shortWalletLabel(wallet),
+    knownHandle: null,
+    categories: [],
+    activeMarkets: 0,
+    totalCurrentSize: 0,
+    realizedPnl: null,
+    last90dPnl: null,
+    closedMarkets: null,
+    roi: null,
+    leaderboardLabels: [],
+    markets: [],
+    outcomes: [],
+  };
+}
+
+function normalizeCurrentWalletPosition(position) {
+  return {
+    conditionId: position.conditionId,
+    marketSlug: position.marketSlug ?? position.slug ?? null,
+    question: position.question ?? position.title ?? null,
+    outcome: position.outcome ?? null,
+    currentSize: position.currentSize ?? position.size ?? 0,
+    shares: position.shares ?? position.size ?? position.currentSize ?? 0,
+    costBasis: position.costBasis ?? position.totalBought ?? null,
+    currentValue: position.currentValue ?? null,
+    averageEntry: position.averageEntry ?? null,
+    currentPrice: position.currentPrice ?? null,
+    realizedPnl: position.realizedPnl ?? null,
+    totalPnl: position.totalPnl ?? null,
+    roi: position.roi ?? null,
+    leaderboardLabels: position.leaderboardLabels ?? [],
+    volume24h: position.volume24h ?? 0,
+    parentTags: position.parentTags ?? [],
+    currentPrices: position.currentPrices ?? {},
+  };
+}
+
+function normalizeClosedWalletPosition(position) {
+  return {
+    wallet: position.wallet ?? null,
+    conditionId: position.conditionId,
+    marketSlug: position.marketSlug ?? position.slug ?? null,
+    slug: position.slug ?? position.marketSlug ?? null,
+    question: position.question ?? position.title ?? null,
+    title: position.title ?? position.question ?? null,
+    outcome: position.outcome ?? null,
+    averageEntry: position.averageEntry ?? position.avgPrice ?? null,
+    totalBought: position.totalBought ?? null,
+    realizedPnl: position.realizedPnl ?? null,
+    timestamp: position.timestamp ?? null,
+    closedAt: timestampToIso(position.timestamp),
+  };
+}
+
+function buildPnlSummary(closedPositions, now) {
+  return {
+    last30d: summarizePnlSince(closedPositions, now, 30),
+    last90d: summarizePnlSince(closedPositions, now, 90),
+    lifetime: summarizePnl(closedPositions),
+  };
+}
+
+function summarizePnlSince(closedPositions, now, days) {
+  const cutoffMs = now.getTime() - days * 24 * 60 * 60 * 1000;
+  return summarizePnl(closedPositions.filter((position) => timestampMs(position.timestamp) >= cutoffMs));
+}
+
+function summarizePnl(positions) {
+  return {
+    realizedPnl: positions.reduce((sum, position) => sum + (position.realizedPnl ?? 0), 0),
+    totalBought: positions.reduce((sum, position) => sum + (position.totalBought ?? 0), 0),
+    markets: positions.length,
+  };
+}
+
+function buildPnlSeries(closedPositions) {
+  let cumulativePnl = 0;
+  return [...closedPositions]
+    .sort((a, b) => timestampMs(a.timestamp) - timestampMs(b.timestamp))
+    .map((position) => {
+      cumulativePnl += position.realizedPnl ?? 0;
+      return {
+        conditionId: position.conditionId,
+        timestamp: position.timestamp,
+        date: timestampToIso(position.timestamp),
+        realizedPnl: position.realizedPnl ?? 0,
+        cumulativePnl,
+      };
+    });
+}
+
+function mergeWalletLabels(snapshotLabels = [], sources = []) {
+  const labels = new Map();
+  for (const label of snapshotLabels ?? []) labels.set(label.id, label);
+  for (const source of sources ?? []) {
+    const label = leaderboardSourceToLabel(source);
+    if (!label) continue;
+    const existing = labels.get(label.id);
+    if (!existing || (label.rank ?? Infinity) < (existing.rank ?? Infinity)) labels.set(label.id, label);
+  }
+  return Array.from(labels.values()).sort(compareLeaderboardLabels);
+}
+
+function leaderboardSourceToLabel(source) {
+  if (source?.category !== "OVERALL" || source?.timePeriod !== "ALL" || source?.orderBy !== "PNL") return null;
+  if (typeof source.rank !== "number") return null;
+  if (source.rank <= 100) return { id: "top_100_pnl", label: "Top 100 PnL", type: "leaderboard", rank: source.rank, category: source.category };
+  if (source.rank <= 250) return { id: "top_250_pnl", label: "Top 250 PnL", type: "leaderboard", rank: source.rank, category: source.category };
+  if (source.rank <= 1000) return { id: "top_1000_pnl", label: "Top 1000 PnL", type: "leaderboard", rank: source.rank, category: source.category };
+  return null;
+}
+
+function timestampMs(value) {
+  if (value === null || value === undefined || value === "") return 0;
+  const numberValue = Number(value);
+  if (Number.isFinite(numberValue)) return numberValue > 10_000_000_000 ? numberValue : numberValue * 1000;
+  const dateMs = new Date(value).getTime();
+  return Number.isNaN(dateMs) ? 0 : dateMs;
+}
+
+function timestampToIso(value) {
+  const ms = timestampMs(value);
+  return ms > 0 ? new Date(ms).toISOString() : null;
+}
+
+function shortWalletLabel(wallet) {
+  return wallet.length > 12 ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : wallet;
 }
 
 function collectWallets(markets) {

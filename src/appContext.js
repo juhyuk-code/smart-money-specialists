@@ -4,6 +4,7 @@ import { createPreferenceMcpApiFromEnv } from "./data/preferenceMcpApi.js";
 import { MarketScanner } from "./services/marketScanner.js";
 import { PolymarketIntelligenceService } from "./services/polymarketIntelligenceService.js";
 import { PolymarketStore } from "./services/polymarketStore.js";
+import { getPoolDebugInfo } from "./services/db.js";
 import { RegistryStore } from "./services/registryStore.js";
 
 let context;
@@ -57,6 +58,7 @@ export function getRuntimeDebugInfo() {
     nodeEnv: process.env.NODE_ENV ?? null,
     vercelEnv: process.env.VERCEL_ENV ?? null,
     vercelGitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+    database: getPoolDebugInfo(),
   };
 }
 

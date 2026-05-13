@@ -19,18 +19,21 @@ export class PolymarketApi {
     store = null,
     rateLimitMs = Number(process.env.POLYMARKET_RATE_LIMIT_MS ?? 120),
     maxRetries = Number(process.env.POLYMARKET_MAX_RETRIES ?? 2),
+    rawPayloadPersistence = process.env.POLYMARKET_RAW_PAYLOAD_PERSISTENCE ?? "async",
   } = {}) {
     if (typeof fetchImpl !== "function") throw new Error("PolymarketApi requires fetch");
     this.fetchImpl = fetchImpl;
     this.store = store;
     this.rateLimitMs = rateLimitMs;
     this.maxRetries = maxRetries;
+    this.rawPayloadPersistence = normalizeRawPayloadPersistence(rawPayloadPersistence);
     this.nextAllowedAt = 0;
     this.marketCache = new Map();
     this.diagnostics = {
       requests: 0,
       retries: 0,
       rawPayloadsSaved: 0,
+      rawPayloadSaveErrors: 0,
       requestErrors: [],
       topMarketsFetched: 0,
       marketPositionsFetched: 0,
@@ -312,7 +315,7 @@ export class PolymarketApi {
         const response = await this.fetchImpl(url, { headers: { accept: "application/json" } });
         const text = await response.text();
         const payload = text ? JSON.parse(text) : null;
-        await this.saveRawPayload({
+        await this.recordRawPayload({
           endpoint: `${baseUrl}${path}`,
           params,
           payload,
@@ -324,7 +327,7 @@ export class PolymarketApi {
         if (!shouldRetry(response.status) || attempt === this.maxRetries) break;
       } catch (error) {
         lastError = error;
-        await this.saveRawPayload({
+        await this.recordRawPayload({
           endpoint: `${baseUrl}${path}`,
           params,
           payload: null,
@@ -354,8 +357,14 @@ export class PolymarketApi {
     if (waitMs > 0) await sleep(waitMs);
   }
 
+  recordRawPayload(args) {
+    if (this.rawPayloadPersistence === "off" || typeof this.store?.saveRawPayload !== "function") return;
+    const savePromise = this.saveRawPayload(args).catch((error) => this.recordRawPayloadError(error));
+    if (this.rawPayloadPersistence === "await") return savePromise;
+    return undefined;
+  }
+
   async saveRawPayload({ endpoint, params, payload, statusCode, error }) {
-    if (typeof this.store?.saveRawPayload !== "function") return;
     await this.store.saveRawPayload({
       endpoint,
       params,
@@ -365,6 +374,17 @@ export class PolymarketApi {
       error,
     });
     this.diagnostics.rawPayloadsSaved += 1;
+  }
+
+  recordRawPayloadError(error) {
+    this.diagnostics.rawPayloadSaveErrors += 1;
+    if (this.diagnostics.requestErrors.length < 10) {
+      this.diagnostics.requestErrors.push({
+        endpoint: "raw-payload-save",
+        params: {},
+        message: error?.message ?? String(error),
+      });
+    }
   }
 }
 
@@ -566,6 +586,13 @@ function slugFromPolymarketUrl(value) {
   } catch {
     return null;
   }
+}
+
+function normalizeRawPayloadPersistence(value) {
+  const normalized = String(value ?? "async").toLowerCase();
+  if (["off", "false", "0", "disabled"].includes(normalized)) return "off";
+  if (["await", "sync", "blocking"].includes(normalized)) return "await";
+  return "async";
 }
 
 function hashParams(params) {

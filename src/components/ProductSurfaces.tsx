@@ -18,7 +18,10 @@ import {
   relativeTime,
   type FeedEvent,
   type Leader,
+  type LeaderboardLabel,
+  type PnlSummaryWindow,
   type WalletDetail,
+  type WalletPnlPoint,
   type WalletRow,
 } from "@/lib/smartMoney";
 
@@ -331,6 +334,8 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
 
   const displayWallet = detail?.displayLabel ?? wallet;
   const positions = detail?.positions ?? [];
+  const closedPositions = detail?.closedPositions ?? [];
+  const labels = walletLabels(detail);
   const hasData = Boolean(detail);
 
   return (
@@ -349,9 +354,20 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
             <div className="min-w-0">
               <h1 className="truncate font-mono text-[22px] text-ink sm:text-[28px]">{displayWallet}</h1>
               <div className="mt-2 flex flex-wrap gap-2">
-                <Pill tone="accent">{hasData ? `rank ${detail?.rank}` : "rank"}</Pill>
+                <Pill tone="accent">{hasData ? `rank ${detail?.rank ?? "--"}` : "rank"}</Pill>
                 <Pill>{detail?.categories?.[0] ?? "top-PnL"}</Pill>
+                {detail?.polymarketProfileUrl ? (
+                  <Link
+                    href={detail.polymarketProfileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-[22px] items-center rounded-[2px] border border-ink-3 bg-[rgba(255,255,255,0.012)] px-2 py-[2px] font-mono text-[10px] uppercase tracking-[0.6px] text-ink-2 hover:border-accent hover:text-accent"
+                  >
+                    Polymarket profile ↗
+                  </Link>
+                ) : null}
               </div>
+              {labels.length > 0 ? <SignalBadgeStrip labels={labels} limit={8} className="mt-2" /> : null}
             </div>
           </div>
           <div className="flex gap-2">
@@ -372,31 +388,41 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-1">
             <StatCard label="current exposure" value={hasData ? formatCurrency(detail?.totalCurrentSize) : "--"} highlight />
             <StatCard label="open markets" value={hasData ? String(detail?.activeMarkets ?? 0) : "--"} highlight />
-            <StatCard label="exposure type" value={hasData ? "current" : "--"} />
+            <StatCard label="closed markets" value={hasData ? String(detail?.closedMarkets ?? closedPositions.length) : "--"} />
             <StatCard label="wallet source" value={hasData ? "top-PnL" : "--"} />
           </div>
-          <div className="surface-card rounded-[3px] p-4">
-            <div className="mb-3 font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
-              top-PnL exposure over time
+          <section className="surface-card rounded-[3px] p-4">
+            <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div className="font-mono text-[10px] uppercase tracking-[1.2px] text-accent">
+                historical PnL
+              </div>
+              <div className="font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+                30D · 90D · lifetime
+              </div>
             </div>
-            <div className="flex h-[260px] items-center justify-center border border-dashed border-ink-3 bg-ink-bg-soft p-4">
-              <SparkLine up={(detail?.totalCurrentSize ?? 0) >= 0} width={320} height={110} />
+            <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <PnlWindowCard label="30D PnL" window={detail?.pnlSummary?.last30d} />
+              <PnlWindowCard label="90D PnL" window={detail?.pnlSummary?.last90d} />
+              <PnlWindowCard label="lifetime PnL" window={detail?.pnlSummary?.lifetime} />
             </div>
-          </div>
+            <PnlChart points={detail?.pnlSeries ?? []} />
+          </section>
         </section>
 
         <section className="surface-card overflow-x-auto rounded-[3px]">
-          <div className="min-w-[720px]">
+          <SectionTitle eyebrow="current positions" meta={`${positions.length} open`} />
+          <div className="min-w-[760px]">
             <TableHeader columns="1fr 72px 96px 128px 100px">
               <span>market</span>
               <span>side</span>
               <span>size</span>
-              <span>entry / now</span>
-              <span>exposure</span>
+              <span>entry</span>
+              <span />
             </TableHeader>
-            {hasData ? positions.map((position) => (
-              <div
+            {hasData && positions.length > 0 ? positions.map((position) => (
+              <Link
                 key={position.conditionId}
+                href={marketDetailPath(position)}
                 className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
                 style={{ gridTemplateColumns: "1fr 72px 96px 128px 100px" }}
               >
@@ -406,11 +432,13 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
                 </span>
                 <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.currentSize)}</span>
                 <span className="font-mono text-[10px] text-ink-2">avg {formatEntry(position.averageEntry)}</span>
-                <span className={`font-mono text-[10px] uppercase ${outcomeTextClass(position.outcome)}`}>
-                  {position.outcome}
+                <span className="justify-self-end rounded-[2px] border border-ink-3 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.7px] text-ink-3">
+                  market
                 </span>
-              </div>
-            )) : POSITION_ROWS.map((_, index) => (
+              </Link>
+            )) : hasData ? (
+              <EmptyTableRow columns="1fr" label="No current positions." />
+            ) : POSITION_ROWS.map((_, index) => (
               <div
                 key={index}
                 className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
@@ -425,9 +453,174 @@ export function WalletDetailSurface({ wallet }: { wallet: string }) {
             ))}
           </div>
         </section>
+
+        <section className="surface-card overflow-x-auto rounded-[3px]">
+          <SectionTitle eyebrow="closed positions" meta="sorted by biggest win" />
+          <div className="min-w-[760px]">
+            <TableHeader columns="1fr 92px 112px 128px 92px">
+              <span>market</span>
+              <span>outcome</span>
+              <span>realized PnL</span>
+              <span>bought / stake</span>
+              <span>closed</span>
+            </TableHeader>
+            {hasData && closedPositions.length > 0 ? closedPositions.map((position) => (
+              <Link
+                key={`${position.conditionId}-${position.outcome ?? "outcome"}`}
+                href={marketDetailPath({ conditionId: position.conditionId, marketSlug: position.marketSlug ?? position.slug ?? "" })}
+                className="row-hover grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+                style={{ gridTemplateColumns: "1fr 92px 112px 128px 92px" }}
+              >
+                <span className="truncate font-mono text-[12px] text-ink">{position.title ?? position.question ?? position.conditionId}</span>
+                <span className={`font-mono text-[10px] uppercase ${outcomeTextClass(position.outcome)}`}>
+                  {position.outcome ?? "--"}
+                </span>
+                <span className={`font-mono text-[10px] ${signedValueClass(position.realizedPnl)}`}>
+                  {formatSignedCurrency(position.realizedPnl)}
+                </span>
+                <span className="font-mono text-[10px] text-ink-2">{formatCurrency(position.totalBought)}</span>
+                <span className="font-mono text-[10px] text-ink-3">{formatShortDate(position.closedAt ?? position.timestamp)}</span>
+              </Link>
+            )) : hasData ? (
+              <EmptyTableRow columns="1fr" label="No closed positions returned yet." />
+            ) : POSITION_ROWS.slice(0, 4).map((_, index) => (
+              <div
+                key={index}
+                className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-3 last:border-b-0"
+                style={{ gridTemplateColumns: "1fr 92px 112px 128px 92px" }}
+              >
+                <SkeletonLine width={index % 2 === 0 ? "76%" : "58%"} />
+                <SkeletonLine width="42px" accent={index % 2 === 0} />
+                <SkeletonLine width="64px" accent={index < 2} />
+                <SkeletonLine width="72px" />
+                <SkeletonLine width="52px" />
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
     </Frame>
   );
+}
+
+function SectionTitle({ eyebrow, meta }: { eyebrow: string; meta?: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-ink-3 bg-paper-2/80 px-3 py-3">
+      <h2 className="font-mono text-[10px] uppercase tracking-[1.2px] text-accent">{eyebrow}</h2>
+      {meta ? <span className="font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{meta}</span> : null}
+    </div>
+  );
+}
+
+function PnlWindowCard({ label, window }: { label: string; window?: PnlSummaryWindow }) {
+  return (
+    <div className="rounded-[2px] border border-ink-3 bg-ink-bg-soft px-3 py-2">
+      <div className="mb-1 font-mono text-[9px] uppercase tracking-[1px] text-ink-3">{label}</div>
+      <div className={`font-mono text-[17px] ${signedValueClass(window?.realizedPnl)}`}>
+        {formatSignedCurrency(window?.realizedPnl)}
+      </div>
+      <div className="mt-1 flex gap-2 font-mono text-[9px] uppercase tracking-[0.7px] text-ink-3">
+        <span>{window ? `${window.markets} mkts` : "-- mkts"}</span>
+        <span>{formatCurrency(window?.totalBought)} bought</span>
+      </div>
+    </div>
+  );
+}
+
+function PnlChart({ points }: { points: WalletPnlPoint[] }) {
+  const width = 640;
+  const height = 210;
+  const padding = 18;
+  const values = points.map((point) => point.cumulativePnl).filter(Number.isFinite);
+  const hasSeries = values.length > 1;
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const range = max - min || 1;
+  const chartPoints = hasSeries
+    ? points.map((point, index) => {
+        const x = padding + (index / Math.max(points.length - 1, 1)) * (width - padding * 2);
+        const y = height - padding - ((point.cumulativePnl - min) / range) * (height - padding * 2);
+        return `${roundSvg(x)},${roundSvg(y)}`;
+      }).join(" ")
+    : "";
+  const zeroY = height - padding - ((0 - min) / range) * (height - padding * 2);
+  const latest = points[points.length - 1];
+
+  return (
+    <div className="border border-dashed border-ink-3 bg-ink-bg-soft p-3">
+      <div className="mb-2 flex items-center justify-between font-mono text-[9px] uppercase tracking-[1px] text-ink-3">
+        <span>cumulative realized PnL</span>
+        <span>{latest ? formatShortDate(latest.date) : "no series"}</span>
+      </div>
+      {hasSeries ? (
+        <svg viewBox={`0 0 ${width} ${height}`} className="h-[210px] w-full" role="img" aria-label="Historical wallet PnL chart">
+          <line x1={padding} x2={width - padding} y1={roundSvg(zeroY)} y2={roundSvg(zeroY)} stroke="rgba(255,255,255,0.18)" strokeDasharray="4 5" />
+          <polyline
+            points={`${chartPoints} ${width - padding},${height - padding} ${padding},${height - padding}`}
+            fill={latest.cumulativePnl >= 0 ? "rgba(69,185,141,0.12)" : "rgba(212,80,93,0.10)"}
+            stroke="none"
+          />
+          <polyline
+            points={chartPoints}
+            fill="none"
+            stroke={latest.cumulativePnl >= 0 ? "var(--positive)" : "var(--negative)"}
+            strokeWidth="2"
+            strokeLinecap="square"
+            strokeLinejoin="miter"
+          />
+        </svg>
+      ) : (
+        <div className="flex h-[210px] items-center justify-center">
+          <SparkLine up width={320} height={110} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyTableRow({ columns, label }: { columns: string; label: string }) {
+  return (
+    <div
+      className="grid items-center gap-3 border-b border-dashed border-ink-3 px-3 py-8 font-mono text-[11px] uppercase tracking-[1px] text-ink-3 last:border-b-0"
+      style={{ gridTemplateColumns: columns }}
+    >
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function walletLabels(detail: WalletDetail | null): LeaderboardLabel[] {
+  const labels = new Map<string, LeaderboardLabel>();
+  for (const label of [...(detail?.leaderboardLabels ?? []), ...(detail?.labels ?? [])]) {
+    labels.set(`${label.id}-${label.label}-${label.rank ?? ""}`, label);
+  }
+  return Array.from(labels.values()).sort((a, b) => {
+    const globalDelta = Number(b.type === "global_pnl") - Number(a.type === "global_pnl");
+    if (globalDelta !== 0) return globalDelta;
+    return (a.rank ?? Infinity) - (b.rank ?? Infinity) || a.label.localeCompare(b.label);
+  });
+}
+
+function signedValueClass(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value === 0) return "text-ink-2";
+  return value > 0 ? "text-[var(--positive)]" : "text-[var(--negative)]";
+}
+
+function formatSignedCurrency(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "--";
+  const formatted = formatCurrency(value);
+  return value > 0 ? `+${formatted}` : formatted;
+}
+
+function formatShortDate(value: string | number | null | undefined) {
+  if (!value) return "--";
+  const date = typeof value === "number" ? new Date(value > 100000000000 ? value : value * 1000) : new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function roundSvg(value: number) {
+  return Math.round(value * 10) / 10;
 }
 
 function LeaderSkeletonRow({ index }: { index: number }) {
