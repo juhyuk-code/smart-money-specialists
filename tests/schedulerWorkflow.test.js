@@ -18,7 +18,8 @@ test("GitHub scheduler workflow is manual-only fallback after Vercel Cron takes 
 test("Vercel cron refreshes production cohort exposure every 30 minutes with Pro workload", () => {
   const config = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
 
-  assert.equal(config.functions?.["api/**/*.js"]?.maxDuration, 300);
+  assert.equal(config.functions?.["api/smart-money/live/refresh.js"]?.maxDuration, 300);
+  assert.equal(config.functions?.["api/**/*.js"]?.maxDuration, 60);
   assert.deepEqual(config.crons, [
     {
       path: "/api/smart-money/live/refresh?mode=cohort-exposure&cohortLimit=250&marketLimit=100&positionPageLimit=3",

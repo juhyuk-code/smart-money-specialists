@@ -2,8 +2,11 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "functions": {
-    "api/**/*.js": {
+    "api/smart-money/live/refresh.js": {
       "maxDuration": 300
+    },
+    "api/**/*.js": {
+      "maxDuration": 60
     }
   },
   "crons": [
