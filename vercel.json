@@ -3,7 +3,13 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/**/*.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/smart-money/live/refresh?mode=cohort-exposure&cohortLimit=250&marketLimit=100&positionPageLimit=3",
+      "schedule": "*/30 * * * *"
+    }
+  ]
 }
