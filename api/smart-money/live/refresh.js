@@ -23,6 +23,7 @@ export default async function handler(request, response) {
       cohortLimit: toPositiveInteger(request.query?.cohortLimit),
       marketLimit: toPositiveInteger(request.query?.marketLimit),
       positionPageLimit: toPositiveInteger(request.query?.positionPageLimit),
+      persistStoreWrites: parseBoolean(request.query?.persistStoreWrites, false),
     };
     const result = await scanner[refreshMethod](Object.fromEntries(Object.entries(options).filter(([, value]) => value)));
     const payload = { dataSource, effectiveDataSource: dataSource, refreshMode: mode, ...result };
@@ -43,4 +44,9 @@ export default async function handler(request, response) {
 function toPositiveInteger(value) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseBoolean(value, fallback) {
+  if (value === undefined || value === null || value === "") return fallback;
+  return ["1", "true", "yes"].includes(String(value).toLowerCase());
 }

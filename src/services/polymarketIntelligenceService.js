@@ -132,6 +132,7 @@ export class PolymarketIntelligenceService {
     marketLimit = DEFAULT_COHORT_MARKET_LIMIT,
     positionPageLimit = Number(process.env.POLYMARKET_COHORT_POSITION_MAX_PAGES ?? 10),
     sizeThreshold = Number(process.env.POLYMARKET_CURRENT_POSITION_SIZE_THRESHOLD ?? 0),
+    persistStoreWrites = true,
   } = {}) {
     const startedAt = new Date().toISOString();
     const discovered = await this.api.listAllTimePnlLeaderboardCohort({ maxRows: cohortLimit, limit: 50 });

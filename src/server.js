@@ -67,6 +67,7 @@ const server = http.createServer(async (request, response) => {
         cohortLimit: toPositiveInteger(url.searchParams.get("cohortLimit")),
         marketLimit: toPositiveInteger(url.searchParams.get("marketLimit")),
         positionPageLimit: toPositiveInteger(url.searchParams.get("positionPageLimit")),
+        persistStoreWrites: parseBoolean(url.searchParams.get("persistStoreWrites"), false),
       };
       const result = await scanner[refreshMethod](Object.fromEntries(Object.entries(options).filter(([, value]) => value)));
       const payload = { dataSource, effectiveDataSource: dataSource, refreshMode: mode, ...result };
