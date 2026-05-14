@@ -1,0 +1,19 @@
+name: Refresh smart-money analytics snapshots
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  refresh-cohort-exposure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call production cohort exposure refresh
+        env:
+          JOB_SECRET: ${{ secrets.JOB_SECRET }}
+        run: |
+          test -n "$JOB_SECRET"
+          curl --fail-with-body --silent --show-error --request POST \
+            --header "x-job-secret: ${JOB_SECRET}" \
+            "https://smart-money-specialists.vercel.app/api/smart-money/live/refresh?mode=cohort-exposure"
