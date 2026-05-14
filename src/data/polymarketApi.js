@@ -19,6 +19,7 @@ export class PolymarketApi {
     store = null,
     rateLimitMs = Number(process.env.POLYMARKET_RATE_LIMIT_MS ?? 120),
     maxRetries = Number(process.env.POLYMARKET_MAX_RETRIES ?? 2),
+    requestTimeoutMs = Number(process.env.POLYMARKET_REQUEST_TIMEOUT_MS ?? 8000),
     rawPayloadPersistence = process.env.POLYMARKET_RAW_PAYLOAD_PERSISTENCE ?? "async",
   } = {}) {
     if (typeof fetchImpl !== "function") throw new Error("PolymarketApi requires fetch");
@@ -26,6 +27,7 @@ export class PolymarketApi {
     this.store = store;
     this.rateLimitMs = rateLimitMs;
     this.maxRetries = maxRetries;
+    this.requestTimeoutMs = requestTimeoutMs;
     this.rawPayloadPersistence = normalizeRawPayloadPersistence(rawPayloadPersistence);
     this.nextAllowedAt = 0;
     this.marketCache = new Map();
@@ -312,7 +314,7 @@ export class PolymarketApi {
       await this.waitForRateLimit();
       this.diagnostics.requests += 1;
       try {
-        const response = await this.fetchImpl(url, { headers: { accept: "application/json" } });
+        const response = await this.fetchWithTimeout(url, { headers: { accept: "application/json" } });
         const text = await response.text();
         const payload = text ? JSON.parse(text) : null;
         await this.recordRawPayload({
@@ -348,6 +350,20 @@ export class PolymarketApi {
       });
     }
     throw lastError;
+  }
+
+  async fetchWithTimeout(url, init = {}) {
+    const timeoutMs = Number.isFinite(this.requestTimeoutMs) && this.requestTimeoutMs > 0 ? this.requestTimeoutMs : 8000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await this.fetchImpl(url, { ...init, signal: controller.signal });
+    } catch (error) {
+      if (error?.name === "AbortError") throw new Error(`Polymarket request timed out after ${timeoutMs}ms`);
+      throw error;
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async waitForRateLimit() {
