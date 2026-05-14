@@ -21,6 +21,8 @@ test("live refresh handler supports explicit cohort exposure mode", async () => 
   process.env.POLYMARKET_COHORT_MARKET_LIMIT = "10";
   const originalFetch = globalThis.fetch;
   const originalDatabaseUrl = process.env.DATABASE_URL;
+  const originalJobSecret = process.env.JOB_SECRET;
+  process.env.JOB_SECRET = "job-secret";
   delete process.env.DATABASE_URL;
   const walletA = "0xaaa0000000000000000000000000000000000001";
   const walletB = "0xbbb0000000000000000000000000000000000002";
@@ -64,7 +66,10 @@ test("live refresh handler supports explicit cohort exposure mode", async () => 
     resetAppContextForTests();
     const { default: handler } = await import(`../api/smart-money/live/refresh.js?case=cohort-${Date.now()}`);
     const response = createResponse();
-    await handler({ query: { mode: "cohort-exposure", cohortLimit: "2", marketLimit: "10", positionPageLimit: "1" } }, response);
+    await handler({
+      headers: { "x-job-secret": "job-secret" },
+      query: { mode: "cohort-exposure", cohortLimit: "2", marketLimit: "10", positionPageLimit: "1" },
+    }, response);
 
     assert.equal(response.statusCode, 200);
     assert.equal(response.body.dataSource, "polymarket");
@@ -84,6 +89,8 @@ test("live refresh handler supports explicit cohort exposure mode", async () => 
     globalThis.fetch = originalFetch;
     if (originalDatabaseUrl) process.env.DATABASE_URL = originalDatabaseUrl;
     else delete process.env.DATABASE_URL;
+    if (originalJobSecret) process.env.JOB_SECRET = originalJobSecret;
+    else delete process.env.JOB_SECRET;
     delete process.env.POLYMARKET_COHORT_EXPOSURE_LIMIT;
     delete process.env.POLYMARKET_COHORT_MARKET_LIMIT;
   }
