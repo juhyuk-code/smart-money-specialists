@@ -16,4 +16,4 @@ jobs:
           test -n "$JOB_SECRET"
           curl --fail-with-body --silent --show-error --request POST \
             --header "x-job-secret: ${JOB_SECRET}" \
-            "https://smart-money-specialists.vercel.app/api/smart-money/live/refresh?mode=cohort-exposure&cohortLimit=25&marketLimit=40&positionPageLimit=2"
+            "https://smart-money-specialists.vercel.app/api/smart-money/live/refresh?mode=cohort-exposure&cohortLimit=5&marketLimit=20&positionPageLimit=1"
